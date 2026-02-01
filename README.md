@@ -351,6 +351,47 @@ Character entity with collision bounds and physics properties.
 - `getVelocity()` - Get current velocity
 - `isOnGround()` - Check if player is on ground
 
+## Architecture
+
+Voxelite follows a clear separation between engine and application:
+
+- **Engine Layer** (Voxelite): Provides primitive operations for world manipulation
+- **Application Layer**: Implements game rules, logic, and when to use engine APIs
+
+Example:
+```java
+// Voxelite provides: "Remove this block"
+world.removeBlock(position);
+
+// Application decides: "Remove block when player left-clicks"
+if (Gdx.input.isButtonJustPressed(Input.Buttons.LEFT)) {
+    if (selectedBlock != null) {
+        world.removeBlock(selectedBlock);
+    }
+}
+```
+
+## Building from Source
+
+```bash
+# Clean and build
+./gradlew clean build
+
+# Run tests
+./gradlew test
+
+# Generate JAR only
+./gradlew jar
+```
+
+## License
+
+Copyright 2026. All rights reserved.
+
+## Contributing
+
+This is a proprietary library. Contact the maintainers for contribution guidelines.
+
 ---
 
 # Voxelite (한국어)
@@ -746,44 +787,3 @@ Copyright 2026. All rights reserved.
 ## 기여
 
 이것은 독점 라이브러리입니다. 기여 가이드라인은 유지보수자에게 문의하세요.
-
-## Architecture
-
-Voxelite follows a clear separation between engine and application:
-
-- **Engine Layer** (Voxelite): Provides primitive operations for world manipulation
-- **Application Layer**: Implements game rules, logic, and when to use engine APIs
-
-Example:
-```java
-// Voxelite provides: "Remove this block"
-world.removeBlock(position);
-
-// Application decides: "Remove block when player left-clicks"
-if (Gdx.input.isButtonJustPressed(Input.Buttons.LEFT)) {
-    if (selectedBlock != null) {
-        world.removeBlock(selectedBlock);
-    }
-}
-```
-
-## Building from Source
-
-```bash
-# Clean and build
-./gradlew clean build
-
-# Run tests
-./gradlew test
-
-# Generate JAR only
-./gradlew jar
-```
-
-## License
-
-Copyright 2026. All rights reserved.
-
-## Contributing
-
-This is a proprietary library. Contact the maintainers for contribution guidelines.
