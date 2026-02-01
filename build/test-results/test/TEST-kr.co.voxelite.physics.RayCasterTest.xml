@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="kr.co.voxelite.physics.RayCasterTest" tests="14" skipped="0" failures="0" errors="0" timestamp="2026-02-01T09:47:06" hostname="bagjonghaui-MacBookPro.local" time="0.012">
+  <properties/>
+  <testcase name="raycastWithFace_BottomFace_ShouldReturnDownNormal()" classname="kr.co.voxelite.physics.RayCasterTest" time="0.001"/>
+  <testcase name="raycast_NoBlockInPath_ShouldReturnNull()" classname="kr.co.voxelite.physics.RayCasterTest" time="0.001"/>
+  <testcase name="raycast_ShouldFindBlockInPath()" classname="kr.co.voxelite.physics.RayCasterTest" time="0.001"/>
+  <testcase name="raycastWithFace_TopFace_ShouldReturnUpNormal()" classname="kr.co.voxelite.physics.RayCasterTest" time="0.001"/>
+  <testcase name="raycastWithFace_BackFace_ShouldReturnBackwardNormal()" classname="kr.co.voxelite.physics.RayCasterTest" time="0.001"/>
+  <testcase name="raycastWithFace_FrontFace_ShouldReturnForwardNormal()" classname="kr.co.voxelite.physics.RayCasterTest" time="0.0"/>
+  <testcase name="raycastWithFace_ShouldReturnRaycastHit()" classname="kr.co.voxelite.physics.RayCasterTest" time="0.0"/>
+  <testcase name="raycast_MaxDistance_ShouldNotFindDistantBlocks()" classname="kr.co.voxelite.physics.RayCasterTest" time="0.001"/>
+  <testcase name="raycastWithFace_NoBlock_ShouldReturnNull()" classname="kr.co.voxelite.physics.RayCasterTest" time="0.001"/>
+  <testcase name="raycast_DiagonalRay_ShouldFindBlock()" classname="kr.co.voxelite.physics.RayCasterTest" time="0.001"/>
+  <testcase name="raycastWithFace_LeftFace_ShouldReturnLeftNormal()" classname="kr.co.voxelite.physics.RayCasterTest" time="0.001"/>
+  <testcase name="raycastWithFace_RightFace_ShouldReturnRightNormal()" classname="kr.co.voxelite.physics.RayCasterTest" time="0.0"/>
+  <testcase name="raycast_ShouldFindNearestBlock()" classname="kr.co.voxelite.physics.RayCasterTest" time="0.0"/>
+  <testcase name="raycast_EmptyWorld_ShouldReturnNull()" classname="kr.co.voxelite.physics.RayCasterTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

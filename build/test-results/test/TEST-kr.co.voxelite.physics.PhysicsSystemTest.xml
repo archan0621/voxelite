@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="kr.co.voxelite.physics.PhysicsSystemTest" tests="13" skipped="0" failures="0" errors="0" timestamp="2026-02-01T09:47:06" hostname="bagjonghaui-MacBookPro.local" time="0.017">
+  <properties/>
+  <testcase name="update_PlayerCollidesWithMultipleBlocks_ShouldResolveCorrectly()" classname="kr.co.voxelite.physics.PhysicsSystemTest" time="0.003"/>
+  <testcase name="update_PlayerOnGround_ShouldNotApplyGravity()" classname="kr.co.voxelite.physics.PhysicsSystemTest" time="0.002"/>
+  <testcase name="update_PlayerInAir_ShouldApplyGravity()" classname="kr.co.voxelite.physics.PhysicsSystemTest" time="0.001"/>
+  <testcase name="update_PlayerFallsOffBlock_ShouldSetOffGround()" classname="kr.co.voxelite.physics.PhysicsSystemTest" time="0.001"/>
+  <testcase name="update_PlayerHitsWall_ShouldStopHorizontalMovement()" classname="kr.co.voxelite.physics.PhysicsSystemTest" time="0.001"/>
+  <testcase name="update_Gravity_ShouldClampToTerminalVelocity()" classname="kr.co.voxelite.physics.PhysicsSystemTest" time="0.001"/>
+  <testcase name="tryJump_PlayerInAir_ShouldNotJump()" classname="kr.co.voxelite.physics.PhysicsSystemTest" time="0.001"/>
+  <testcase name="update_PlayerMovesHorizontally_ShouldUpdatePosition()" classname="kr.co.voxelite.physics.PhysicsSystemTest" time="0.001"/>
+  <testcase name="update_PlayerStandingStill_ShouldStillCheckGround()" classname="kr.co.voxelite.physics.PhysicsSystemTest" time="0.001"/>
+  <testcase name="update_PlayerLandsOnBlock_ShouldSetOnGround()" classname="kr.co.voxelite.physics.PhysicsSystemTest" time="0.001"/>
+  <testcase name="update_BlockRemovedUnderPlayer_ShouldFall()" classname="kr.co.voxelite.physics.PhysicsSystemTest" time="0.001"/>
+  <testcase name="update_PlayerHitsCeiling_ShouldStopUpwardMovement()" classname="kr.co.voxelite.physics.PhysicsSystemTest" time="0.001"/>
+  <testcase name="tryJump_PlayerOnGround_ShouldJump()" classname="kr.co.voxelite.physics.PhysicsSystemTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

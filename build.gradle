@@ -1,0 +1,44 @@
+plugins {
+    id 'java-library'
+}
+
+group = 'kr.co.archan'
+version = '1.0-SNAPSHOT'
+
+repositories {
+    mavenCentral()
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
+
+ext {
+    gdxVersion = '1.14.0'
+}
+
+dependencies {
+    // LibGDX 핵심 의존성
+    api "com.badlogicgames.gdx:gdx:$gdxVersion"
+    
+    // Gson for JSON parsing
+    api 'com.google.code.gson:gson:2.10.1'
+    
+    // Test dependencies
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.9.3'
+    testImplementation 'org.mockito:mockito-core:5.3.1'
+    testImplementation 'org.mockito:mockito-junit-jupiter:5.3.1'
+    testImplementation "com.badlogicgames.gdx:gdx-backend-headless:$gdxVersion"
+    testImplementation "com.badlogicgames.gdx:gdx-platform:$gdxVersion:natives-desktop"
+}
+
+test {
+    useJUnitPlatform()
+}
+
+// JAR 파일 생성 시 의존성 포함하지 않음 (thin JAR)
+jar {
+    archiveBaseName.set('voxelite')
+    archiveVersion.set('1.0-SNAPSHOT')
+}

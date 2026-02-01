@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="kr.co.voxelite.physics.AABBTest" tests="12" skipped="0" failures="0" errors="0" timestamp="2026-02-01T09:47:06" hostname="bagjonghaui-MacBookPro.local" time="0.003">
+  <properties/>
+  <testcase name="getMin_ShouldReturnCorrectBounds()" classname="kr.co.voxelite.physics.AABBTest" time="0.0"/>
+  <testcase name="setSize_ShouldUpdateHalfSizes()" classname="kr.co.voxelite.physics.AABBTest" time="0.0"/>
+  <testcase name="constructor_WithHalfSizes_ShouldCreateCorrectBounds()" classname="kr.co.voxelite.physics.AABBTest" time="0.0"/>
+  <testcase name="getCenter_ShouldReturnSameInstance()" classname="kr.co.voxelite.physics.AABBTest" time="0.0"/>
+  <testcase name="setCenter_WithVector3_ShouldUpdateBounds()" classname="kr.co.voxelite.physics.AABBTest" time="0.001"/>
+  <testcase name="setCenter_WithFloats_ShouldUpdateBounds()" classname="kr.co.voxelite.physics.AABBTest" time="0.0"/>
+  <testcase name="intersects_NonOverlappingAABBs_ShouldReturnFalse()" classname="kr.co.voxelite.physics.AABBTest" time="0.0"/>
+  <testcase name="offset_ShouldMoveCenter()" classname="kr.co.voxelite.physics.AABBTest" time="0.0"/>
+  <testcase name="intersects_OverlappingAABBs_ShouldReturnTrue()" classname="kr.co.voxelite.physics.AABBTest" time="0.0"/>
+  <testcase name="intersects_TouchingAABBs_ShouldReturnTrue()" classname="kr.co.voxelite.physics.AABBTest" time="0.0"/>
+  <testcase name="constructor_WithCubeSize_ShouldCreateCube()" classname="kr.co.voxelite.physics.AABBTest" time="0.0"/>
+  <testcase name="getMax_ShouldReturnCorrectBounds()" classname="kr.co.voxelite.physics.AABBTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="kr.co.voxelite.world.WorldTest" tests="17" skipped="0" failures="0" errors="0" timestamp="2026-02-01T09:47:07" hostname="bagjonghaui-MacBookPro.local" time="0.008">
+  <properties/>
+  <testcase name="positionKey_Rounding_ShouldHandleFloatPositions()" classname="kr.co.voxelite.world.WorldTest" time="0.001"/>
+  <testcase name="removeBlock_ShouldRemoveBlockAtPosition()" classname="kr.co.voxelite.world.WorldTest" time="0.0"/>
+  <testcase name="removeBlock_NonExistentBlock_ShouldReturnFalse()" classname="kr.co.voxelite.world.WorldTest" time="0.001"/>
+  <testcase name="addStaircaseGround_ShouldCreateStaircasePattern()" classname="kr.co.voxelite.world.WorldTest" time="0.0"/>
+  <testcase name="addFlatGround_ShouldCreateGridOfBlocks()" classname="kr.co.voxelite.world.WorldTest" time="0.0"/>
+  <testcase name="removeBlock_NullPosition_ShouldReturnFalse()" classname="kr.co.voxelite.world.WorldTest" time="0.001"/>
+  <testcase name="removeBlock_ShouldUpdateIndicesCorrectly()" classname="kr.co.voxelite.world.WorldTest" time="0.0"/>
+  <testcase name="addBlock_AtSamePosition_ShouldNotAddDuplicate()" classname="kr.co.voxelite.world.WorldTest" time="0.001"/>
+  <testcase name="getBlockType_NonExistentBlock_ShouldReturnNegativeOne()" classname="kr.co.voxelite.world.WorldTest" time="0.0"/>
+  <testcase name="clear_ShouldRemoveAllBlocks()" classname="kr.co.voxelite.world.WorldTest" time="0.0"/>
+  <testcase name="addBlock_WithoutBlockType_ShouldUseDefaultType()" classname="kr.co.voxelite.world.WorldTest" time="0.001"/>
+  <testcase name="addBlock_ShouldAddBlockAtPosition()" classname="kr.co.voxelite.world.WorldTest" time="0.0"/>
+  <testcase name="getBlockType_ExistingBlock_ShouldReturnCorrectType()" classname="kr.co.voxelite.world.WorldTest" time="0.001"/>
+  <testcase name="createStaircaseGround_ShouldClearAndCreateStaircase()" classname="kr.co.voxelite.world.WorldTest" time="0.0"/>
+  <testcase name="getBlockType_NullPosition_ShouldReturnNegativeOne()" classname="kr.co.voxelite.world.WorldTest" time="0.0"/>
+  <testcase name="addFlatGround_WithoutBlockType_ShouldUseDefaultType()" classname="kr.co.voxelite.world.WorldTest" time="0.0"/>
+  <testcase name="createFlatGround_ShouldClearAndCreateGround()" classname="kr.co.voxelite.world.WorldTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

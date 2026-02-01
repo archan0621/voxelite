@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="kr.co.voxelite.physics.AABBEdgeCaseTest" tests="15" skipped="0" failures="0" errors="0" timestamp="2026-02-01T09:47:06" hostname="bagjonghaui-MacBookPro.local" time="0.004">
+  <properties/>
+  <testcase name="constructor_NaNHalfSize_ShouldAccept()" classname="kr.co.voxelite.physics.AABBEdgeCaseTest" time="0.0"/>
+  <testcase name="constructor_InfinityHalfSize_ShouldAccept()" classname="kr.co.voxelite.physics.AABBEdgeCaseTest" time="0.0"/>
+  <testcase name="setSize_NegativeValues_ShouldAccept()" classname="kr.co.voxelite.physics.AABBEdgeCaseTest" time="0.0"/>
+  <testcase name="constructor_NaNCenter_ShouldAccept()" classname="kr.co.voxelite.physics.AABBEdgeCaseTest" time="0.0"/>
+  <testcase name="constructor_VeryLargeHalfSize_ShouldAccept()" classname="kr.co.voxelite.physics.AABBEdgeCaseTest" time="0.0"/>
+  <testcase name="constructor_ZeroHalfSize_ShouldAccept()" classname="kr.co.voxelite.physics.AABBEdgeCaseTest" time="0.001"/>
+  <testcase name="offset_WithNaNValues_ShouldNotCrash()" classname="kr.co.voxelite.physics.AABBEdgeCaseTest" time="0.0"/>
+  <testcase name="constructor_InfinityCenter_ShouldAccept()" classname="kr.co.voxelite.physics.AABBEdgeCaseTest" time="0.0"/>
+  <testcase name="setCenter_NaNValues_ShouldAccept()" classname="kr.co.voxelite.physics.AABBEdgeCaseTest" time="0.001"/>
+  <testcase name="setSize_NaNValues_ShouldAccept()" classname="kr.co.voxelite.physics.AABBEdgeCaseTest" time="0.0"/>
+  <testcase name="setCenter_InfinityValues_ShouldAccept()" classname="kr.co.voxelite.physics.AABBEdgeCaseTest" time="0.0"/>
+  <testcase name="offset_WithInfinityValues_ShouldNotCrash()" classname="kr.co.voxelite.physics.AABBEdgeCaseTest" time="0.0"/>
+  <testcase name="constructor_NegativeHalfSize_ShouldAccept()" classname="kr.co.voxelite.physics.AABBEdgeCaseTest" time="0.0"/>
+  <testcase name="intersects_WithNaNValues_ShouldNotCrash()" classname="kr.co.voxelite.physics.AABBEdgeCaseTest" time="0.0"/>
+  <testcase name="intersects_WithInfinityValues_ShouldNotCrash()" classname="kr.co.voxelite.physics.AABBEdgeCaseTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

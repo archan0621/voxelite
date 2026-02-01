@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="kr.co.voxelite.engine.VoxeliteEngineTest" tests="21" skipped="0" failures="0" errors="0" timestamp="2026-02-01T09:47:06" hostname="bagjonghaui-MacBookPro.local" time="0.012">
+  <properties/>
+  <testcase name="update_BeforeInit_ShouldThrowException()" classname="kr.co.voxelite.engine.VoxeliteEngineTest" time="0.001"/>
+  <testcase name="updatePhysics_ShouldUpdatePlayerPhysics()" classname="kr.co.voxelite.engine.VoxeliteEngineTest" time="0.002"/>
+  <testcase name="isInitialized_BeforeInit_ShouldReturnFalse()" classname="kr.co.voxelite.engine.VoxeliteEngineTest" time="0.001"/>
+  <testcase name="getSelectedBlock_NoBlockInView_ShouldReturnNull()" classname="kr.co.voxelite.engine.VoxeliteEngineTest" time="0.0"/>
+  <testcase name="builder_TextureAtlasPath_ShouldLoadTexture()" classname="kr.co.voxelite.engine.VoxeliteEngineTest" time="0.002"/>
+  <testcase name="dispose_ShouldCleanupResources()" classname="kr.co.voxelite.engine.VoxeliteEngineTest" time="0.0"/>
+  <testcase name="builder_ShouldCreateEngine()" classname="kr.co.voxelite.engine.VoxeliteEngineTest" time="0.001"/>
+  <testcase name="isInitialized_AfterInit_ShouldReturnTrue()" classname="kr.co.voxelite.engine.VoxeliteEngineTest" time="0.0"/>
+  <testcase name="getWorld_ShouldReturnWorldInstance()" classname="kr.co.voxelite.engine.VoxeliteEngineTest" time="0.0"/>
+  <testcase name="initialize_Twice_ShouldNotReinitialize()" classname="kr.co.voxelite.engine.VoxeliteEngineTest" time="0.0"/>
+  <testcase name="render_BeforeInit_ShouldThrowException()" classname="kr.co.voxelite.engine.VoxeliteEngineTest" time="0.0"/>
+  <testcase name="getRaycastHit_ShouldReturnHitOrNull()" classname="kr.co.voxelite.engine.VoxeliteEngineTest" time="0.001"/>
+  <testcase name="resize_BeforeInit_ShouldNotCrash()" classname="kr.co.voxelite.engine.VoxeliteEngineTest" time="0.0"/>
+  <testcase name="getPlayer_ShouldHaveCorrectStartPosition()" classname="kr.co.voxelite.engine.VoxeliteEngineTest" time="0.0"/>
+  <testcase name="update_ShouldUpdateSystems()" classname="kr.co.voxelite.engine.VoxeliteEngineTest" time="0.001"/>
+  <testcase name="getPhysics_ShouldReturnPhysicsSystem()" classname="kr.co.voxelite.engine.VoxeliteEngineTest" time="0.0"/>
+  <testcase name="resize_ShouldUpdateScreenDimensions()" classname="kr.co.voxelite.engine.VoxeliteEngineTest" time="0.0"/>
+  <testcase name="initialize_ShouldInitializeAllSystems()" classname="kr.co.voxelite.engine.VoxeliteEngineTest" time="0.001"/>
+  <testcase name="getPlayer_ShouldReturnPlayerInstance()" classname="kr.co.voxelite.engine.VoxeliteEngineTest" time="0.0"/>
+  <testcase name="builder_AutoCreateGround_ShouldCreateGround()" classname="kr.co.voxelite.engine.VoxeliteEngineTest" time="0.0"/>
+  <testcase name="getSelectedBlock_BlockInView_ShouldReturnBlockPosition()" classname="kr.co.voxelite.engine.VoxeliteEngineTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

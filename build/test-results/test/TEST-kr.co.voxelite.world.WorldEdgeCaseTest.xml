@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="kr.co.voxelite.world.WorldEdgeCaseTest" tests="18" skipped="0" failures="0" errors="0" timestamp="2026-02-01T09:47:06" hostname="bagjonghaui-MacBookPro.local" time="0.075">
+  <properties/>
+  <testcase name="addFlatGround_NegativeGridSize_ShouldNotCrash()" classname="kr.co.voxelite.world.WorldEdgeCaseTest" time="0.001"/>
+  <testcase name="addBlock_VeryLargeBlockType_ShouldAccept()" classname="kr.co.voxelite.world.WorldEdgeCaseTest" time="0.001"/>
+  <testcase name="getBlockType_WithNaNPosition_ShouldReturnNegativeOne()" classname="kr.co.voxelite.world.WorldEdgeCaseTest" time="0.0"/>
+  <testcase name="removeBlock_IndexOutOfBounds_ShouldHandleGracefully()" classname="kr.co.voxelite.world.WorldEdgeCaseTest" time="0.001"/>
+  <testcase name="getBlockType_NegativeIndex_ShouldReturnNegativeOne()" classname="kr.co.voxelite.world.WorldEdgeCaseTest" time="0.0"/>
+  <testcase name="getBlockType_WithInfinityPosition_ShouldReturnNegativeOne()" classname="kr.co.voxelite.world.WorldEdgeCaseTest" time="0.001"/>
+  <testcase name="addFlatGround_ZeroGridSize_ShouldNotCrash()" classname="kr.co.voxelite.world.WorldEdgeCaseTest" time="0.001"/>
+  <testcase name="addBlock_WithNaNPosition_ShouldHandleGracefully()" classname="kr.co.voxelite.world.WorldEdgeCaseTest" time="0.0"/>
+  <testcase name="addBlock_WithInfinityPosition_ShouldHandleGracefully()" classname="kr.co.voxelite.world.WorldEdgeCaseTest" time="0.0"/>
+  <testcase name="addStaircaseGround_NegativeGridSize_ShouldNotCrash()" classname="kr.co.voxelite.world.WorldEdgeCaseTest" time="0.0"/>
+  <testcase name="getBlockType_IndexOutOfBounds_ShouldReturnNegativeOne()" classname="kr.co.voxelite.world.WorldEdgeCaseTest" time="0.001"/>
+  <testcase name="createFlatGround_ZeroGridSize_ShouldClearWorld()" classname="kr.co.voxelite.world.WorldEdgeCaseTest" time="0.0"/>
+  <testcase name="clear_MultipleTimes_ShouldNotCrash()" classname="kr.co.voxelite.world.WorldEdgeCaseTest" time="0.001"/>
+  <testcase name="addFlatGround_ZeroBlockSpacing_ShouldNotCrash()" classname="kr.co.voxelite.world.WorldEdgeCaseTest" time="0.001"/>
+  <testcase name="addStaircaseGround_ZeroGridSize_ShouldNotCrash()" classname="kr.co.voxelite.world.WorldEdgeCaseTest" time="0.0"/>
+  <testcase name="addBlock_NegativeBlockType_ShouldAccept()" classname="kr.co.voxelite.world.WorldEdgeCaseTest" time="0.001"/>
+  <testcase name="addFlatGround_NegativeBlockSpacing_ShouldNotCrash()" classname="kr.co.voxelite.world.WorldEdgeCaseTest" time="0.001"/>
+  <testcase name="addFlatGround_VeryLargeGridSize_ShouldNotCrash()" classname="kr.co.voxelite.world.WorldEdgeCaseTest" time="0.062"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

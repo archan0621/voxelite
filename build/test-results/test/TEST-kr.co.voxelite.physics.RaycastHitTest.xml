@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="kr.co.voxelite.physics.RaycastHitTest" tests="10" skipped="0" failures="0" errors="0" timestamp="2026-02-01T09:47:06" hostname="bagjonghaui-MacBookPro.local" time="0.002">
+  <properties/>
+  <testcase name="constructor_ShouldStoreBlockPositionAndNormal()" classname="kr.co.voxelite.physics.RaycastHitTest" time="0.0"/>
+  <testcase name="getPlacementPosition_RightFace_ShouldPlaceToRight()" classname="kr.co.voxelite.physics.RaycastHitTest" time="0.0"/>
+  <testcase name="getPlacementPosition_ShouldReturnNewVector()" classname="kr.co.voxelite.physics.RaycastHitTest" time="0.0"/>
+  <testcase name="getPlacementPosition_BottomFace_ShouldPlaceBelow()" classname="kr.co.voxelite.physics.RaycastHitTest" time="0.0"/>
+  <testcase name="getPlacementPosition_LeftFace_ShouldPlaceToLeft()" classname="kr.co.voxelite.physics.RaycastHitTest" time="0.0"/>
+  <testcase name="getBlockPosition_ShouldReturnNewVector()" classname="kr.co.voxelite.physics.RaycastHitTest" time="0.0"/>
+  <testcase name="getPlacementPosition_FrontFace_ShouldPlaceInFront()" classname="kr.co.voxelite.physics.RaycastHitTest" time="0.001"/>
+  <testcase name="getPlacementPosition_BackFace_ShouldPlaceBehind()" classname="kr.co.voxelite.physics.RaycastHitTest" time="0.0"/>
+  <testcase name="getPlacementPosition_TopFace_ShouldPlaceAbove()" classname="kr.co.voxelite.physics.RaycastHitTest" time="0.0"/>
+  <testcase name="constructor_ShouldCreateCopiesOfVectors()" classname="kr.co.voxelite.physics.RaycastHitTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

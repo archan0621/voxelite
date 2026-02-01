@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="kr.co.voxelite.engine.VoxeliteEngineEdgeCaseTest" tests="13" skipped="0" failures="0" errors="0" timestamp="2026-02-01T09:47:06" hostname="bagjonghaui-MacBookPro.local" time="0.017">
+  <properties/>
+  <testcase name="updatePhysics_ZeroDelta_ShouldNotCrash()" classname="kr.co.voxelite.engine.VoxeliteEngineEdgeCaseTest" time="0.011"/>
+  <testcase name="builder_WithExtremeValues_ShouldNotCrash()" classname="kr.co.voxelite.engine.VoxeliteEngineEdgeCaseTest" time="0.0"/>
+  <testcase name="updatePhysics_NaNDelta_ShouldNotCrash()" classname="kr.co.voxelite.engine.VoxeliteEngineEdgeCaseTest" time="0.0"/>
+  <testcase name="initialize_VeryLargeScreenSize_ShouldNotCrash()" classname="kr.co.voxelite.engine.VoxeliteEngineEdgeCaseTest" time="0.001"/>
+  <testcase name="update_VeryLargeDelta_ShouldNotCrash()" classname="kr.co.voxelite.engine.VoxeliteEngineEdgeCaseTest" time="0.0"/>
+  <testcase name="update_NaNDelta_ShouldNotCrash()" classname="kr.co.voxelite.engine.VoxeliteEngineEdgeCaseTest" time="0.001"/>
+  <testcase name="resize_ZeroSize_ShouldNotCrash()" classname="kr.co.voxelite.engine.VoxeliteEngineEdgeCaseTest" time="0.0"/>
+  <testcase name="update_ZeroDelta_ShouldNotCrash()" classname="kr.co.voxelite.engine.VoxeliteEngineEdgeCaseTest" time="0.001"/>
+  <testcase name="initialize_ZeroScreenSize_ShouldNotCrash()" classname="kr.co.voxelite.engine.VoxeliteEngineEdgeCaseTest" time="0.0"/>
+  <testcase name="initialize_NegativeScreenSize_ShouldNotCrash()" classname="kr.co.voxelite.engine.VoxeliteEngineEdgeCaseTest" time="0.0"/>
+  <testcase name="dispose_Twice_ShouldNotCrash()" classname="kr.co.voxelite.engine.VoxeliteEngineEdgeCaseTest" time="0.0"/>
+  <testcase name="update_InfinityDelta_ShouldNotCrash()" classname="kr.co.voxelite.engine.VoxeliteEngineEdgeCaseTest" time="0.0"/>
+  <testcase name="resize_NegativeSize_ShouldNotCrash()" classname="kr.co.voxelite.engine.VoxeliteEngineEdgeCaseTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>
