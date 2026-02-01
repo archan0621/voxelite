@@ -2,29 +2,74 @@ package kr.co.voxelite.physics;
 
 import com.badlogic.gdx.math.Vector3;
 import kr.co.voxelite.entity.Player;
+import kr.co.voxelite.world.ChunkCoord;
 import kr.co.voxelite.world.World;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Minecraft-style axis-separated collision resolution.
  * Applies gravity, resolves collisions per-axis (Y → X → Z), and determines ground state.
+ * Uses Fixed Timestep for frame-independent physics simulation.
  */
 public class PhysicsSystem {
     private final World world;
     private static final float BLOCK_SIZE = 1.0f;
+    private static final float COLLISION_MARGIN = 0.001f; // 충돌 여유값
+    private static final int PHYSICS_CHUNK_RADIUS = 1; // 물리 계산 청크 반경 (3x3)
+    
+    // Fixed Timestep
+    private static final float FIXED_TIMESTEP = 1f / 60f; // 60Hz 물리 업데이트
+    private static final float MAX_FRAME_TIME = 0.25f; // 최대 프레임 시간 (스파이럴 방지)
+    private float accumulator = 0f;
+    
+    // 근처 블록 캐시 (청크 이동 시에만 갱신)
+    private List<Vector3> nearbyBlocks = new ArrayList<>();
+    private ChunkCoord lastPhysicsChunk = null;
     
     public PhysicsSystem(World world) {
         this.world = world;
     }
     
     /**
-     * Updates player physics (gravity, movement, collision).
+     * Updates player physics with Fixed Timestep
      */
     public void update(Player player, float delta) {
-        applyGravity(player, delta);
+        // 스파이럴 오브 데스 방지
+        if (delta > MAX_FRAME_TIME) {
+            delta = MAX_FRAME_TIME;
+        }
         
-        float dx = player.getVelocity().x * delta;
-        float dy = player.getVelocity().y * delta;
-        float dz = player.getVelocity().z * delta;
+        accumulator += delta;
+        
+        // Fixed timestep으로 물리 시뮬레이션
+        while (accumulator >= FIXED_TIMESTEP) {
+            stepPhysics(player, FIXED_TIMESTEP);
+            accumulator -= FIXED_TIMESTEP;
+        }
+        
+        // 남은 시간은 다음 프레임으로 이월
+    }
+    
+    /**
+     * Single physics step with fixed timestep
+     */
+    private void stepPhysics(Player player, float dt) {
+        // 근처 블록 갱신 (청크 이동 시에만)
+        Vector3 pos = player.getPosition();
+        ChunkCoord currentChunk = world.getChunkCoordAt(pos.x, pos.z);
+        
+        if (lastPhysicsChunk == null || !lastPhysicsChunk.equals(currentChunk)) {
+            nearbyBlocks = world.getNearbyBlockPositions(pos.x, pos.z, PHYSICS_CHUNK_RADIUS);
+            lastPhysicsChunk = currentChunk;
+        }
+        
+        applyGravity(player, dt);
+        
+        float dx = player.getVelocity().x * dt;
+        float dy = player.getVelocity().y * dt;
+        float dz = player.getVelocity().z * dt;
         
         moveAndCollide(player, dx, dy, dz);
     }
@@ -78,10 +123,10 @@ public class PhysicsSystem {
             if (checkCollision(aabb)) {
                 if (dx > 0) {
                     float wallX = findWallXPositive(aabb);
-                    pos.x = wallX - Player.WIDTH / 2f;
+                    pos.x = wallX - Player.WIDTH / 2f - COLLISION_MARGIN;
                 } else {
                     float wallX = findWallXNegative(aabb);
-                    pos.x = wallX + Player.WIDTH / 2f;
+                    pos.x = wallX + Player.WIDTH / 2f + COLLISION_MARGIN;
                 }
                 player.setPosition(pos);
                 player.getVelocity().x = 0;
@@ -95,10 +140,10 @@ public class PhysicsSystem {
             if (checkCollision(aabb)) {
                 if (dz > 0) {
                     float wallZ = findWallZPositive(aabb);
-                    pos.z = wallZ - Player.WIDTH / 2f;
+                    pos.z = wallZ - Player.WIDTH / 2f - COLLISION_MARGIN;
                 } else {
                     float wallZ = findWallZNegative(aabb);
-                    pos.z = wallZ + Player.WIDTH / 2f;
+                    pos.z = wallZ + Player.WIDTH / 2f + COLLISION_MARGIN;
                 }
                 player.setPosition(pos);
                 player.getVelocity().z = 0;
@@ -110,10 +155,10 @@ public class PhysicsSystem {
     }
     
     /**
-     * Checks if player AABB intersects any block.
+     * Checks if player AABB intersects any block (근처 청크만)
      */
     private boolean checkCollision(AABB playerAABB) {
-        for (Vector3 blockPos : world.getBlockPositions()) {
+        for (Vector3 blockPos : nearbyBlocks) {
             AABB blockAABB = new AABB(blockPos, BLOCK_SIZE / 2f);
             if (playerAABB.intersects(blockAABB)) {
                 return true;
@@ -128,7 +173,7 @@ public class PhysicsSystem {
     private float findFloorY(AABB playerAABB) {
         float highestFloor = -Float.MAX_VALUE;
         
-        for (Vector3 blockPos : world.getBlockPositions()) {
+        for (Vector3 blockPos : nearbyBlocks) {
             AABB blockAABB = new AABB(blockPos, BLOCK_SIZE / 2f);
             if (playerAABB.intersects(blockAABB)) {
                 float blockTop = blockPos.y + BLOCK_SIZE / 2f;
@@ -147,7 +192,7 @@ public class PhysicsSystem {
     private float findCeilingY(AABB playerAABB) {
         float lowestCeiling = Float.MAX_VALUE;
         
-        for (Vector3 blockPos : world.getBlockPositions()) {
+        for (Vector3 blockPos : nearbyBlocks) {
             AABB blockAABB = new AABB(blockPos, BLOCK_SIZE / 2f);
             if (playerAABB.intersects(blockAABB)) {
                 float blockBottom = blockPos.y - BLOCK_SIZE / 2f;
@@ -166,7 +211,7 @@ public class PhysicsSystem {
     private float findWallXPositive(AABB playerAABB) {
         float leftmostWall = Float.MAX_VALUE;
         
-        for (Vector3 blockPos : world.getBlockPositions()) {
+        for (Vector3 blockPos : nearbyBlocks) {
             AABB blockAABB = new AABB(blockPos, BLOCK_SIZE / 2f);
             if (playerAABB.intersects(blockAABB)) {
                 float blockLeft = blockPos.x - BLOCK_SIZE / 2f;
@@ -185,7 +230,7 @@ public class PhysicsSystem {
     private float findWallXNegative(AABB playerAABB) {
         float rightmostWall = -Float.MAX_VALUE;
         
-        for (Vector3 blockPos : world.getBlockPositions()) {
+        for (Vector3 blockPos : nearbyBlocks) {
             AABB blockAABB = new AABB(blockPos, BLOCK_SIZE / 2f);
             if (playerAABB.intersects(blockAABB)) {
                 float blockRight = blockPos.x + BLOCK_SIZE / 2f;
@@ -204,7 +249,7 @@ public class PhysicsSystem {
     private float findWallZPositive(AABB playerAABB) {
         float backmostWall = Float.MAX_VALUE;
         
-        for (Vector3 blockPos : world.getBlockPositions()) {
+        for (Vector3 blockPos : nearbyBlocks) {
             AABB blockAABB = new AABB(blockPos, BLOCK_SIZE / 2f);
             if (playerAABB.intersects(blockAABB)) {
                 float blockBack = blockPos.z - BLOCK_SIZE / 2f;
@@ -223,7 +268,7 @@ public class PhysicsSystem {
     private float findWallZNegative(AABB playerAABB) {
         float frontmostWall = -Float.MAX_VALUE;
         
-        for (Vector3 blockPos : world.getBlockPositions()) {
+        for (Vector3 blockPos : nearbyBlocks) {
             AABB blockAABB = new AABB(blockPos, BLOCK_SIZE / 2f);
             if (playerAABB.intersects(blockAABB)) {
                 float blockFront = blockPos.z + BLOCK_SIZE / 2f;

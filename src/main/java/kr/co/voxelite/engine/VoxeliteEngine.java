@@ -12,8 +12,7 @@ import kr.co.voxelite.physics.PhysicsSystem;
 import kr.co.voxelite.physics.RayCaster;
 import kr.co.voxelite.physics.RaycastHit;
 import kr.co.voxelite.render.Renderer;
-import kr.co.voxelite.world.BlockManager;
-import kr.co.voxelite.world.World;
+import kr.co.voxelite.world.*;
 
 import java.util.List;
 import com.badlogic.gdx.graphics.g3d.ModelInstance;
@@ -45,6 +44,10 @@ public class VoxeliteEngine {
     private RaycastHit raycastHit;
     
     private boolean initialized = false;
+    
+    // Tick system for chunk updates
+    private static final float CHUNK_UPDATE_INTERVAL = 0.05f; // 20Hz (50ms)
+    private float chunkUpdateAccumulator = 0f;
     
     /**
      * Create engine with default configuration
@@ -96,13 +99,34 @@ public class VoxeliteEngine {
         }
         world = new World(blockManager);
         
-        // Optionally create default flat ground
+        // Optionally create ground
+        float spawnY = config.playerStartPosition.y;
         if (config.autoCreateGround) {
-            world.addFlatGround(config.worldWidth, 1f, config.groundLevel, config.defaultGroundBlockType);
+            if (config.chunkGenerator != null && config.chunkLoadPolicy != null) {
+                // 청크 시스템 (정책 주입)
+                world.initWithChunks(config.worldSavePath, config.defaultGroundBlockType,
+                                    config.chunkGenerator, config.chunkLoadPolicy);
+                float terrainHeight = world.generateInitialChunks(
+                    config.playerStartPosition.x, 
+                    config.playerStartPosition.z, 
+                    config.initialChunkRadius,
+                    config.chunkPreloadRadius
+                );
+                spawnY = terrainHeight + 2f;
+            } else if (config.useRandomTerrain) {
+                // 기존 랜덤 지형 (deprecated)
+                // Note: World.generateRandomTerrain() 메서드는 더 이상 존재하지 않음
+                // 청크 시스템을 사용하세요
+                throw new UnsupportedOperationException("Use chunk system instead: .useChunkSystem(true)");
+            } else {
+                // 기존 평평한 지형 (deprecated)
+                throw new UnsupportedOperationException("Use chunk system instead: .useChunkSystem(true)");
+            }
         }
         
         // Create player
-        player = new Player(config.playerStartPosition);
+        Vector3 adjustedSpawn = new Vector3(config.playerStartPosition.x, spawnY, config.playerStartPosition.z);
+        player = new Player(adjustedSpawn);
         
         // Create camera
         camera = new FPSCamera(config.fieldOfView, screenWidth, screenHeight);
@@ -130,6 +154,21 @@ public class VoxeliteEngine {
     public void update(float delta) {
         if (!initialized) {
             throw new IllegalStateException("Engine not initialized. Call initialize() first.");
+        }
+        
+        // Tick-based chunk updates (10Hz)
+        chunkUpdateAccumulator += delta;
+        if (chunkUpdateAccumulator >= CHUNK_UPDATE_INTERVAL) {
+            if (world.getChunkManager() != null) {
+                Vector3 playerPos = player.getPosition();
+                world.updateChunks(playerPos.x, playerPos.z);
+            }
+            chunkUpdateAccumulator -= CHUNK_UPDATE_INTERVAL;
+        }
+        
+        // Process pending chunks every frame (빠른 반응성)
+        if (world.getChunkManager() != null) {
+            world.processPendingChunks();
         }
         
         // Update input
@@ -290,6 +329,36 @@ public class VoxeliteEngine {
         
         public Builder textureAtlasPath(String path) {
             configBuilder.textureAtlasPath(path);
+            return this;
+        }
+        
+        public Builder worldSeed(long seed) {
+            configBuilder.worldSeed(seed);
+            return this;
+        }
+        
+        public Builder chunkGenerator(IChunkGenerator generator) {
+            configBuilder.chunkGenerator(generator);
+            return this;
+        }
+        
+        public Builder chunkLoadPolicy(IChunkLoadPolicy policy) {
+            configBuilder.chunkLoadPolicy(policy);
+            return this;
+        }
+        
+        public Builder initialChunkRadius(int radius) {
+            configBuilder.initialChunkRadius(radius);
+            return this;
+        }
+        
+        public Builder chunkPreloadRadius(int radius) {
+            configBuilder.chunkPreloadRadius(radius);
+            return this;
+        }
+        
+        public Builder worldSavePath(String path) {
+            configBuilder.worldSavePath(path);
             return this;
         }
         

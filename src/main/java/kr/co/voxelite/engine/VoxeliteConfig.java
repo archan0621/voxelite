@@ -1,6 +1,8 @@
 package kr.co.voxelite.engine;
 
 import com.badlogic.gdx.math.Vector3;
+import kr.co.voxelite.world.IChunkGenerator;
+import kr.co.voxelite.world.IChunkLoadPolicy;
 
 /**
  * Configuration for VoxeliteEngine
@@ -12,6 +14,14 @@ public class VoxeliteConfig {
     public float groundLevel = -1f;
     public boolean autoCreateGround = true;
     public int defaultGroundBlockType = 0;
+    public boolean useRandomTerrain = false;
+    public long worldSeed = 0L;
+    // Chunk system (정책 주입 방식)
+    public IChunkGenerator chunkGenerator = null;
+    public IChunkLoadPolicy chunkLoadPolicy = null;
+    public int initialChunkRadius = 16; // 초기 생성 반경
+    public int chunkPreloadRadius = 1; // 초기 메모리 로드 반경
+    public String worldSavePath = "saves/world1";
     
     // Texture settings
     public String textureAtlasPath = null;
@@ -91,6 +101,36 @@ public class VoxeliteConfig {
         
         public Builder textureAtlasPath(String path) {
             config.textureAtlasPath = path;
+            return this;
+        }
+        
+        public Builder worldSeed(long seed) {
+            config.worldSeed = seed;
+            return this;
+        }
+        
+        public Builder chunkGenerator(IChunkGenerator generator) {
+            config.chunkGenerator = generator;
+            return this;
+        }
+        
+        public Builder chunkLoadPolicy(IChunkLoadPolicy policy) {
+            config.chunkLoadPolicy = policy;
+            return this;
+        }
+        
+        public Builder initialChunkRadius(int radius) {
+            config.initialChunkRadius = radius;
+            return this;
+        }
+        
+        public Builder chunkPreloadRadius(int radius) {
+            config.chunkPreloadRadius = radius;
+            return this;
+        }
+        
+        public Builder worldSavePath(String path) {
+            config.worldSavePath = path;
             return this;
         }
         

@@ -26,7 +26,7 @@ public class Renderer {
         int backBufferHeight = Gdx.graphics.getBackBufferHeight();
         Gdx.gl.glViewport(0, 0, backBufferWidth, backBufferHeight);
 
-        Gdx.gl.glClearColor(0.1f, 0.1f, 0.25f, 1f);
+        Gdx.gl.glClearColor(0.87f, 0.95f, 1.0f, 1f); // 하늘색 배경
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT | GL20.GL_DEPTH_BUFFER_BIT);
 
         fpsCamera.resize(logicalWidth, logicalHeight);
