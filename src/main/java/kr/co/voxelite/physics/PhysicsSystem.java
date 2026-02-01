@@ -27,9 +27,17 @@ public class PhysicsSystem {
     // 근처 블록 캐시 (청크 이동 시에만 갱신)
     private List<Vector3> nearbyBlocks = new ArrayList<>();
     private ChunkCoord lastPhysicsChunk = null;
+    private boolean cacheInvalidated = false; // 블록 변경으로 인한 캐시 무효화 플래그
     
     public PhysicsSystem(World world) {
         this.world = world;
+    }
+    
+    /**
+     * 블록 변경 시 캐시 무효화 (다음 물리 스텝에서 갱신됨)
+     */
+    public void invalidateCache() {
+        this.cacheInvalidated = true;
     }
     
     /**
@@ -56,13 +64,14 @@ public class PhysicsSystem {
      * Single physics step with fixed timestep
      */
     private void stepPhysics(Player player, float dt) {
-        // 근처 블록 갱신 (청크 이동 시에만)
+        // 근처 블록 갱신 (청크 이동 또는 캐시 무효화 시)
         Vector3 pos = player.getPosition();
         ChunkCoord currentChunk = world.getChunkCoordAt(pos.x, pos.z);
         
-        if (lastPhysicsChunk == null || !lastPhysicsChunk.equals(currentChunk)) {
+        if (lastPhysicsChunk == null || !lastPhysicsChunk.equals(currentChunk) || cacheInvalidated) {
             nearbyBlocks = world.getNearbyBlockPositions(pos.x, pos.z, PHYSICS_CHUNK_RADIUS);
             lastPhysicsChunk = currentChunk;
+            cacheInvalidated = false;
         }
         
         applyGravity(player, dt);

@@ -278,12 +278,6 @@ public class World {
             // 통합 메시에 추가
             blockDataList.add(new BlockManager.BlockData(pos, block.blockType));
             visibleFacesMap.put(pos, visibleFaces);
-            
-            // 디버깅: 첫 번째 블록 타입 확인
-            if (blockDataList.size() == 1) {
-                System.out.println("[World] First block in chunk " + chunk.getCoord() + 
-                    " - blockType: " + block.blockType + ", position: " + pos);
-            }
         }
         
         if (skippedBlocks > 0) {

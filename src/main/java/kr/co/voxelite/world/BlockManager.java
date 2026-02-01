@@ -367,12 +367,6 @@ public class BlockManager {
             float u = tileX * tileSize;
             float v = tileY * tileSize;
             
-            // 디버깅: 블록 타입 확인
-            if (mergedQuads.indexOf(quad) == 0) {
-                System.out.println("[BlockManager] First quad - blockType: " + blockType + 
-                    ", tileX: " + tileX + ", tileY: " + tileY + ", u: " + u + ", v: " + v);
-            }
-            
             // 방향에 따라 큰 면 생성 (UV 반복 적용)
             createMergedFaceWithRepeatingUV(meshBuilder, origin, width, height, direction, s, normal, u, v, tileSize);
         }

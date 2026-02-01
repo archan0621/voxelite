@@ -265,6 +265,41 @@ public class VoxeliteEngine {
     }
     
     /**
+     * Add block to world and invalidate physics cache
+     */
+    public void addBlock(Vector3 position, int blockType) {
+        if (world != null) {
+            world.addBlock(position, blockType);
+            // 블록 추가 시 물리 시스템 캐시 무효화
+            if (physics != null) {
+                physics.invalidateCache();
+            }
+        }
+    }
+    
+    /**
+     * Add block to world (default blockType = 0) and invalidate physics cache
+     */
+    public void addBlock(Vector3 position) {
+        addBlock(position, 0);
+    }
+    
+    /**
+     * Remove block from world and invalidate physics cache
+     */
+    public boolean removeBlock(Vector3 position) {
+        if (world != null) {
+            boolean removed = world.removeBlock(position);
+            // 블록 제거 시 물리 시스템 캐시 무효화
+            if (removed && physics != null) {
+                physics.invalidateCache();
+            }
+            return removed;
+        }
+        return false;
+    }
+    
+    /**
      * Force physics update (useful after world changes)
      */
     public void updatePhysics(float delta) {
