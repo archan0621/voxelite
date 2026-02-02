@@ -16,11 +16,11 @@ public class VoxeliteConfig {
     public int defaultGroundBlockType = 0;
     public boolean useRandomTerrain = false;
     public long worldSeed = 0L;
-    // Chunk system (정책 주입 방식)
+    // Chunk system (policy injection pattern)
     public IChunkGenerator chunkGenerator = null;
     public IChunkLoadPolicy chunkLoadPolicy = null;
-    public int initialChunkRadius = 16; // 초기 생성 반경
-    public int chunkPreloadRadius = 1; // 초기 메모리 로드 반경
+    public int initialChunkRadius = 16; // Initial generation radius
+    public int chunkPreloadRadius = 1; // Initial memory load radius
     public String worldSavePath = "saves/world1";
     
     // Texture settings

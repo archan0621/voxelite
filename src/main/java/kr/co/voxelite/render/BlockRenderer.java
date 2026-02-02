@@ -27,7 +27,7 @@ public class BlockRenderer {
 
     public void render(PerspectiveCamera camera, World world) {
         modelBatch.begin(camera);
-        // Frustum Culling: 화면에 보이는 청크만 렌더링
+        // Frustum Culling: render only chunks visible on screen
         List<ModelInstance> instances = world.getAllBlockInstances(camera);
         for (ModelInstance instance : instances) {
             modelBatch.render(instance, environment);

@@ -23,6 +23,25 @@ public class ChunkCoord {
         return new ChunkCoord(chunkX, chunkZ);
     }
     
+    /**
+     * Get adjacent chunk coordinates
+     */
+    public ChunkCoord left() {
+        return new ChunkCoord(x - 1, z);
+    }
+    
+    public ChunkCoord right() {
+        return new ChunkCoord(x + 1, z);
+    }
+    
+    public ChunkCoord front() {
+        return new ChunkCoord(x, z + 1);
+    }
+    
+    public ChunkCoord back() {
+        return new ChunkCoord(x, z - 1);
+    }
+    
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;

@@ -10,13 +10,15 @@ import kr.co.voxelite.physics.PhysicsSystem;
 /**
  * Controls player movement and camera based on input.
  * Translates WASD/mouse input to velocity, updates physics, and syncs camera to player eye position.
+ * 
+ * Can be extended by game applications to add custom movement modes.
  */
 public class CameraController {
-    private final FPSCamera camera;
-    private final Player player;
-    private final PhysicsSystem physicsSystem;
-    private final InputHandler inputHandler;
-    private float moveSpeed = 5f;
+    protected final FPSCamera camera;
+    protected final Player player;
+    protected final PhysicsSystem physicsSystem;
+    protected final InputHandler inputHandler;
+    protected float moveSpeed = 5f;
 
     public CameraController(FPSCamera camera, Player player, PhysicsSystem physicsSystem, InputHandler inputHandler) {
         this.camera = camera;
@@ -37,13 +39,15 @@ public class CameraController {
             camera.addPitch(deltaPitch);
         }
 
-        if (Gdx.input.isKeyJustPressed(Input.Keys.SPACE)) {
+        // Handle jump (only in normal mode with gravity enabled)
+        if (player.isGravityEnabled() && Gdx.input.isKeyJustPressed(Input.Keys.SPACE)) {
             physicsSystem.tryJump(player);
         }
 
         Vector3 direction = camera.getDirection();
         Vector3 moveDir = new Vector3();
 
+        // Normal mode: horizontal movement only
         Vector3 horizontalDir = new Vector3(direction);
         horizontalDir.y = 0;
         horizontalDir.nor();
@@ -76,6 +80,7 @@ public class CameraController {
             player.getVelocity().z = 0;
         }
 
+        // Physics update (gravity, collision, etc.)
         physicsSystem.update(player, delta);
         
         updateCameraPosition();
@@ -85,7 +90,7 @@ public class CameraController {
     /**
      * Syncs camera to player's eye position.
      */
-    private void updateCameraPosition() {
+    protected void updateCameraPosition() {
         camera.setPosition(player.getEyePosition());
     }
     

@@ -17,7 +17,7 @@ public class World {
     private ChunkManager chunkManager;
     private List<ModelInstance> cachedInstances;
     private boolean instancesDirty = true;
-    private int lastBlockCount = 0; // 블록 수 추적
+    private int lastBlockCount = 0; // Track block count
 
     public World(BlockManager blockManager) {
         this.blockManager = blockManager;
@@ -25,7 +25,7 @@ public class World {
     }
     
     /**
-     * Initialize with chunk-based terrain generation (정책 주입)
+     * Initialize with chunk-based terrain generation (policy injection)
      */
     public void initWithChunks(String worldPath, int defaultBlockType, 
                               IChunkGenerator generator, IChunkLoadPolicy loadPolicy) {
@@ -34,8 +34,8 @@ public class World {
     
     /**
      * Generate initial spawn chunks
-     * @param totalRadius - 파일로 생성할 총 반경
-     * @param loadRadius - 메모리에 로드할 반경
+     * @param totalRadius - Total radius to generate to file
+     * @param loadRadius - Radius to load into memory
      */
     public float generateInitialChunks(float spawnX, float spawnZ, int totalRadius, int loadRadius) {
         if (chunkManager == null) {
@@ -43,19 +43,19 @@ public class World {
         }
         
         chunkManager.generateInitialChunks(spawnX, spawnZ, totalRadius, loadRadius);
-        instancesDirty = true;  // 초기 생성 시 메시 빌드 필요
+        instancesDirty = true;  // Need mesh build on initial generation
         
         return chunkManager.getChunkCenterHeight(spawnX, spawnZ);
     }
     
     /**
-     * Update chunks based on player position (Tick 기반, 10Hz)
+     * Update chunks based on player position (Tick-based, 10Hz)
      */
     public void updateChunks(float playerX, float playerZ) {
         if (chunkManager != null) {
             chunkManager.updateLoadedChunks(playerX, playerZ);
             
-            // 청크가 추가/제거되었을 때만 재구성
+            // Rebuild only when chunks are added/removed
             if (chunkManager.consumeChunksChanged()) {
                 instancesDirty = true;
             }
@@ -63,7 +63,7 @@ public class World {
     }
     
     /**
-     * Process pending chunks (매 프레임 호출)
+     * Process pending chunks (call every frame)
      */
     public void processPendingChunks() {
         if (chunkManager != null) {
@@ -128,24 +128,20 @@ public class World {
     
     /**
      * Get all block positions (for collision detection)
-     * @deprecated 성능 문제로 getNearbyBlockPositions 사용 권장
+     * @deprecated Use getNearbyBlockPositions for better performance
      */
     @Deprecated
     public List<Vector3> getBlockPositions() {
-        List<Vector3> positions = new ArrayList<>();
-        
+        // ✅ Prevent ConcurrentModificationException with snapshot approach
         if (chunkManager != null) {
-            for (Chunk.BlockData block : chunkManager.getAllBlocks()) {
-                positions.add(block.position);
-            }
+            return chunkManager.getBlockPositionsSnapshot();
         }
-        
-        return positions;
+        return new ArrayList<>();
     }
     
     /**
-     * Get nearby block positions (플레이어 주변 청크만)
-     * 물리/충돌 계산에 사용
+     * Get nearby block positions (only chunks around player)
+     * Used for physics/collision calculations
      */
     public List<Vector3> getNearbyBlockPositions(float playerX, float playerZ, int chunkRadius) {
         List<Vector3> positions = new ArrayList<>();
@@ -155,7 +151,8 @@ public class World {
             
             for (Chunk chunk : nearbyChunks) {
                 for (Chunk.BlockData block : chunk.getBlocks()) {
-                    positions.add(block.position);
+                    // ✅ BlockPos → Vector3 conversion
+                    positions.add(block.getWorldPos(chunk.getCoord()));
                 }
             }
         }
@@ -179,19 +176,19 @@ public class World {
     
     /**
      * Get all block model instances for rendering with Frustum Culling
-     * @param camera 카메라 (Frustum Culling용, null이면 모든 청크 반환)
+     * @param camera Camera (for Frustum Culling, returns all chunks if null)
      */
     public List<ModelInstance> getAllBlockInstances(com.badlogic.gdx.graphics.Camera camera) {
         if (chunkManager == null) {
             return cachedInstances;
         }
         
-        // instancesDirty일 때만 재구성
+        // Rebuild only when instancesDirty
         if (instancesDirty) {
             rebuildAllChunkMeshes();
         }
         
-        // Frustum Culling 적용
+        // Apply Frustum Culling
         if (camera != null) {
             return getFrustumCulledInstances(camera);
         }
@@ -200,7 +197,7 @@ public class World {
     }
     
     /**
-     * Frustum Culling: 화면에 보이는 청크만 반환
+     * Frustum Culling: Return only visible chunks on screen
      */
     private List<ModelInstance> getFrustumCulledInstances(com.badlogic.gdx.graphics.Camera camera) {
         List<ModelInstance> visibleInstances = new ArrayList<>();
@@ -208,7 +205,7 @@ public class World {
         
         for (Chunk chunk : chunkManager.getLoadedChunks()) {
             if (chunk.hasMesh() && chunk.getMesh().hasInstance()) {
-                // Frustum 체크
+                // Check frustum
                 if (camera.frustum.boundsInFrustum(chunk.getBounds())) {
                     visibleInstances.add(chunk.getMesh().getInstance());
                 } else {
@@ -217,25 +214,21 @@ public class World {
             }
         }
         
-        if (culledCount > 0) {
-            System.out.println("[World] Frustum Culling: " + culledCount + " chunks culled");
-        }
-        
         return visibleInstances;
     }
     
     /**
-     * Rebuild all chunk meshes and collect instances (청크 단위 통합 메시)
+     * Rebuild all chunk meshes and collect instances (chunk-based unified mesh)
      */
     private void rebuildAllChunkMeshes() {
-        // 1. 생성되었지만 메시가 없는 청크의 메시 빌드
+        // 1. Build mesh for generated chunks without mesh
         for (Chunk chunk : chunkManager.getLoadedChunks()) {
             if (chunk.isGenerated() && !chunk.hasMesh()) {
                 buildChunkMesh(chunk);
             }
         }
         
-        // 2. 모든 청크의 통합 메시 수집 (1 청크 = 1 ModelInstance)
+        // 2. Collect unified meshes from all chunks (1 chunk = 1 ModelInstance)
         cachedInstances.clear();
         for (Chunk chunk : chunkManager.getLoadedChunks()) {
             if (chunk.hasMesh() && chunk.getMesh().hasInstance()) {
@@ -247,7 +240,7 @@ public class World {
     }
     
     /**
-     * Build mesh for a single chunk (통합 메시: 1 Chunk = 1 Draw Call)
+     * Build mesh for a single chunk (unified mesh: 1 Chunk = 1 Draw Call)
      * - Face Culling
      * - Fully Occluded Block Removal
      */
@@ -257,9 +250,10 @@ public class World {
         int skippedBlocks = 0;
         
         for (Chunk.BlockData block : chunk.getBlocks()) {
-            Vector3 pos = block.position;
+            // ✅ BlockPos → Vector3 conversion
+            Vector3 pos = block.getWorldPos(chunk.getCoord());
             
-            // Face Culling: 각 면의 가시성 체크
+            // Face Culling: Check visibility of each face
             boolean[] visibleFaces = new boolean[6];
             visibleFaces[0] = !chunkManager.hasBlockAt(pos.x, pos.y, pos.z + 1); // Front (z+)
             visibleFaces[1] = !chunkManager.hasBlockAt(pos.x, pos.y, pos.z - 1); // Back (z-)
@@ -268,24 +262,19 @@ public class World {
             visibleFaces[4] = !chunkManager.hasBlockAt(pos.x, pos.y + 1, pos.z); // Top (y+)
             visibleFaces[5] = !chunkManager.hasBlockAt(pos.x, pos.y - 1, pos.z); // Bottom (y-)
             
-            // 완전히 가려진 블록 제거 (모든 면이 숨겨진 경우)
+            // Remove fully occluded blocks (all faces hidden)
             if (!visibleFaces[0] && !visibleFaces[1] && !visibleFaces[2] && 
                 !visibleFaces[3] && !visibleFaces[4] && !visibleFaces[5]) {
                 skippedBlocks++;
-                continue; // 완전히 가려진 블록은 메시에 추가하지 않음
+                continue; // Don't add fully occluded blocks to mesh
             }
             
-            // 통합 메시에 추가
+            // Add to unified mesh
             blockDataList.add(new BlockManager.BlockData(pos, block.blockType));
             visibleFacesMap.put(pos, visibleFaces);
         }
         
-        if (skippedBlocks > 0) {
-            System.out.println("[World] Chunk " + chunk.getCoord() + 
-                ": skipped " + skippedBlocks + " fully occluded blocks");
-        }
-        
-        // 청크 전체를 1개 통합 메시로 생성 (1 Draw Call!)
+        // Create entire chunk as one unified mesh (1 Draw Call!)
         Model chunkModel = blockManager.createChunkMesh(blockDataList, visibleFacesMap);
         
         ChunkMesh mesh = new ChunkMesh();
@@ -294,35 +283,38 @@ public class World {
     }
     
     /**
-     * Invalidate chunk mesh (블록 변경 시)
-     * + 인접 청크도 무효화 (Face Culling 때문에)
+     * Invalidate chunk mesh (when block changes)
+     * + Also invalidate adjacent chunks (due to Face Culling)
      */
     private void invalidateChunkMesh(Vector3 position) {
         if (chunkManager != null) {
             ChunkCoord coord = ChunkCoord.fromWorldPos(position.x, position.z, Chunk.CHUNK_SIZE);
             
-            // 해당 청크 무효화
+            // Invalidate target chunk
             invalidateChunkAt(coord);
             
-            // 블록 위치가 청크 경계인지 확인하여 인접 청크도 무효화
-            int localX = (int)position.x & (Chunk.CHUNK_SIZE - 1);
-            int localZ = (int)position.z & (Chunk.CHUNK_SIZE - 1);
+            // Check if block position is at chunk boundary and invalidate adjacent chunks
+            // ✅ Negative coordinate safe: Math.floor → Math.floorMod
+            int blockX = (int) Math.floor(position.x);
+            int blockZ = (int) Math.floor(position.z);
+            int localX = Math.floorMod(blockX, Chunk.CHUNK_SIZE);
+            int localZ = Math.floorMod(blockZ, Chunk.CHUNK_SIZE);
             
-            // X 경계 체크
+            // Check X boundary
             if (localX == 0) {
-                invalidateChunkAt(new ChunkCoord(coord.x - 1, coord.z)); // 왼쪽 청크
+                invalidateChunkAt(new ChunkCoord(coord.x - 1, coord.z)); // Left chunk
             } else if (localX == Chunk.CHUNK_SIZE - 1) {
-                invalidateChunkAt(new ChunkCoord(coord.x + 1, coord.z)); // 오른쪽 청크
+                invalidateChunkAt(new ChunkCoord(coord.x + 1, coord.z)); // Right chunk
             }
             
-            // Z 경계 체크
+            // Check Z boundary
             if (localZ == 0) {
-                invalidateChunkAt(new ChunkCoord(coord.x, coord.z - 1)); // 뒤쪽 청크
+                invalidateChunkAt(new ChunkCoord(coord.x, coord.z - 1)); // Back chunk
             } else if (localZ == Chunk.CHUNK_SIZE - 1) {
-                invalidateChunkAt(new ChunkCoord(coord.x, coord.z + 1)); // 앞쪽 청크
+                invalidateChunkAt(new ChunkCoord(coord.x, coord.z + 1)); // Front chunk
             }
             
-            // 대각선 코너 체크
+            // Check diagonal corners
             if (localX == 0 && localZ == 0) {
                 invalidateChunkAt(new ChunkCoord(coord.x - 1, coord.z - 1));
             } else if (localX == 0 && localZ == Chunk.CHUNK_SIZE - 1) {
@@ -336,7 +328,7 @@ public class World {
     }
     
     /**
-     * Helper: 특정 청크의 메시 무효화
+     * Helper: Invalidate mesh of specific chunk
      */
     private void invalidateChunkAt(ChunkCoord coord) {
         if (chunkManager != null) {

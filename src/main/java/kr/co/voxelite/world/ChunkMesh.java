@@ -4,20 +4,20 @@ import com.badlogic.gdx.graphics.g3d.Model;
 import com.badlogic.gdx.graphics.g3d.ModelInstance;
 
 /**
- * Chunk의 통합 렌더링 메시
- * - 청크 전체 = 1개 ModelInstance = 1 Draw Call
- * - GPU 캐싱
+ * Unified rendering mesh for a chunk
+ * - Entire chunk = 1 ModelInstance = 1 Draw Call
+ * - GPU caching
  */
 public class ChunkMesh {
-    private Model model;                // 통합 메시 (VBO)
-    private ModelInstance instance;     // 렌더링 인스턴스
+    private Model model;                // Unified mesh (VBO)
+    private ModelInstance instance;     // Rendering instance
     private boolean dirty = true;
     
     /**
-     * 통합 메시 설정
+     * Sets unified mesh
      */
     public void setModel(Model model) {
-        // 기존 메시 정리
+        // Clean up existing mesh
         if (this.model != null) {
             this.model.dispose();
         }
@@ -28,21 +28,21 @@ public class ChunkMesh {
     }
     
     /**
-     * 렌더링용 인스턴스 반환
+     * Returns rendering instance
      */
     public ModelInstance getInstance() {
         return instance;
     }
     
     /**
-     * 메시가 유효한가?
+     * Is mesh valid?
      */
     public boolean hasInstance() {
         return instance != null;
     }
     
     /**
-     * 메시 무효화
+     * Invalidates mesh
      */
     public void markDirty() {
         this.dirty = true;
@@ -53,7 +53,7 @@ public class ChunkMesh {
     }
     
     /**
-     * 메모리 정리
+     * Clears memory
      */
     public void clear() {
         if (model != null) {
@@ -65,7 +65,7 @@ public class ChunkMesh {
     }
     
     /**
-     * Dispose 시 호출
+     * Called on dispose
      */
     public void dispose() {
         clear();

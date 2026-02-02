@@ -12,6 +12,7 @@ public class Player {
     private final Vector3 velocity;
     private boolean onGround;
     private final AABB aabb;
+    private boolean gravityEnabled = true;  // Extension point: gravity can be disabled by subclasses
     
     public static final float WIDTH = 0.6f;
     public static final float HEIGHT = 1.8f;
@@ -58,6 +59,15 @@ public class Player {
     public Vector3 getVelocity() { return velocity; }
     public AABB getAABB() { return aabb; }
     public boolean isOnGround() { return onGround; }
+    public boolean isGravityEnabled() { return gravityEnabled; }
     
     public void setOnGround(boolean onGround) { this.onGround = onGround; }
+    
+    /**
+     * Extension point: allows subclasses to control gravity.
+     * Used by game-specific features like fly mode, creative mode, etc.
+     */
+    protected void setGravityEnabled(boolean enabled) {
+        this.gravityEnabled = enabled;
+    }
 }

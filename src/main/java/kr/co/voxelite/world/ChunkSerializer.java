@@ -14,24 +14,25 @@ public class ChunkSerializer {
      * Save chunk to file
      */
     public static void saveChunk(Chunk chunk, File file) throws IOException {
-        file.getParentFile().mkdirs(); // 폴더 생성
+        file.getParentFile().mkdirs(); // Create folder
         
         try (DataOutputStream out = new DataOutputStream(
                 new BufferedOutputStream(new FileOutputStream(file)))) {
             
-            // 헤더: 청크 좌표
+            // Header: chunk coordinates
             out.writeInt(chunk.getCoord().x);
             out.writeInt(chunk.getCoord().z);
             
-            // 블록 수
+            // Block count
             Collection<Chunk.BlockData> blocks = chunk.getBlocks();
             out.writeInt(blocks.size());
             
-            // 각 블록 저장
+            // Save each block
+            // ✅ Modified: Use BlockPos
             for (Chunk.BlockData block : blocks) {
-                out.writeFloat(block.position.x);
-                out.writeFloat(block.position.y);
-                out.writeFloat(block.position.z);
+                out.writeInt(block.pos.x());
+                out.writeInt(block.pos.y());
+                out.writeInt(block.pos.z());
                 out.writeInt(block.blockType);
             }
         }
@@ -44,30 +45,78 @@ public class ChunkSerializer {
         try (DataInputStream in = new DataInputStream(
                 new BufferedInputStream(new FileInputStream(file)))) {
             
-            // 헤더: 청크 좌표
+            // Header: chunk coordinates
             int chunkX = in.readInt();
             int chunkZ = in.readInt();
             
             Chunk chunk = new Chunk(new ChunkCoord(chunkX, chunkZ));
             
-            // 블록 수
+            // Block count
             int blockCount = in.readInt();
+
+            System.out.println(
+            "[CHUNK_LOAD] coord=(" + chunkX + "," + chunkZ + ")" +
+            " blocks=" + blockCount +
+            " file=" + file.getName()
+            );
             
-            // 각 블록 로드
+            // Load each block
+            // ✅ Modified: Load as BlockPos
             for (int i = 0; i < blockCount; i++) {
-                float x = in.readFloat();
-                float y = in.readFloat();
-                float z = in.readFloat();
+                int localX = in.readInt();
+                int blockY = in.readInt();
+                int localZ = in.readInt();
                 int blockType = in.readInt();
                 
-                Vector3 pos = new Vector3(x, y, z);
-                chunk.addBlockWorld(pos, blockType);
+                chunk.addBlockLocal(localX, blockY, localZ, blockType);
             }
             
-            // 로드된 청크는 generated = true로 설정
+            // Set loaded chunks as generated = true
             chunk.markAsGenerated();
             
             return chunk;
+        }
+    }
+    
+    /**
+     * Load chunk data into existing chunk object
+     * ✅ Fill data into existing object (prevent placeholder replacement)
+     */
+    public static void loadInto(Chunk chunk, File file) throws IOException {
+        try (DataInputStream in = new DataInputStream(
+                new BufferedInputStream(new FileInputStream(file)))) {
+            
+            // Header: chunk coordinates (for verification)
+            int chunkX = in.readInt();
+            int chunkZ = in.readInt();
+            
+            // Verify coordinate match
+            if (chunk.getCoord().x != chunkX || chunk.getCoord().z != chunkZ) {
+                throw new IOException("Chunk coordinate mismatch: expected " + chunk.getCoord() 
+                    + ", got (" + chunkX + ", " + chunkZ + ")");
+            }
+            
+            // Block count
+            int blockCount = in.readInt();
+            
+            System.out.println(
+                "[CHUNK_LOAD_INTO] coord=" + chunk.getCoord() +
+                " blocks=" + blockCount +
+                " file=" + file.getName()
+            );
+            
+            // Load each block
+            for (int i = 0; i < blockCount; i++) {
+                int localX = in.readInt();
+                int blockY = in.readInt();
+                int localZ = in.readInt();
+                int blockType = in.readInt();
+                
+                chunk.addBlockLocal(localX, blockY, localZ, blockType);
+            }
+            
+            // Set loaded chunks as generated = true
+            chunk.markAsGenerated();
         }
     }
     

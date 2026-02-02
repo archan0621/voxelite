@@ -32,8 +32,8 @@ public class BlockManager {
     public BlockManager(String atlasPath) {
         if (atlasPath != null) {
             this.blockAtlas = new Texture(Gdx.files.internal(atlasPath));
-            // ✅ Atlas-Safe 방식: UV는 항상 1타일 크기만 사용하므로 Repeat 불필요
-            // 기본값 (ClampToEdge) 사용
+            // ✅ Atlas-Safe approach: UV always uses only 1 tile size, so Repeat is unnecessary
+            // Use default (ClampToEdge)
         }
         this.tileSize = 1.0f / atlasGridSize;
         this.blockModelsCache = new HashMap<>();
@@ -74,10 +74,6 @@ public class BlockManager {
         float v = tileY * tileSize;
         float u2 = u + tileSize;
         float v2 = v + tileSize;
-        
-        System.out.println("[BlockManager] Block type " + blockType + 
-            " UV: (" + u + "," + v + ") to (" + u2 + "," + v2 + 
-            ") | Tile: (" + tileX + "," + tileY + ")");
         
         Material material = new Material(TextureAttribute.createDiffuse(blockAtlas));
         long attributes = VertexAttributes.Usage.Position | 
@@ -237,9 +233,9 @@ public class BlockManager {
     
     /**
      * Create model instances for visible faces only (Face Culling)
-     * @param blockPosition 블록 위치
-     * @param blockType 블록 타입
-     * @param visibleFaces 가시성 배열 [front, back, left, right, top, bottom]
+     * @param blockPosition Block position
+     * @param blockType Block type
+     * @param visibleFaces Visibility array [front, back, left, right, top, bottom]
      */
     public List<ModelInstance> createVisibleFaces(Vector3 blockPosition, int blockType, boolean[] visibleFaces) {
         if (visibleFaces == null || visibleFaces.length != 6) {
@@ -313,17 +309,17 @@ public class BlockManager {
     }
     
     /**
-     * 청크 전체를 1개 통합 메시로 생성 (Greedy Meshing 적용!)
-     * @param blocks 블록 리스트
-     * @param visibleFacesMap 각 블록의 가시성 맵
-     * @return 통합 Model (1 Draw Call + 면 개수 10~20배 감소)
+     * Create entire chunk as one unified mesh (Greedy Meshing applied!)
+     * @param blocks Block list
+     * @param visibleFacesMap Visibility map for each block
+     * @return Unified Model (1 Draw Call + 10~20x face count reduction)
      */
     public Model createChunkMesh(List<BlockData> blocks, Map<Vector3, boolean[]> visibleFacesMap) {
         if (blocks == null || blocks.isEmpty()) {
             return null;
         }
         
-        // Greedy Meshing 알고리즘 적용
+        // Apply Greedy Meshing algorithm
         List<GreedyMeshBuilder.MergedQuad> mergedQuads = 
             GreedyMeshBuilder.buildGreedyMesh(blocks, visibleFacesMap);
         
@@ -331,7 +327,7 @@ public class BlockManager {
             return null;
         }
         
-        // 병합된 면들을 실제 메시로 변환
+        // Convert merged faces to actual mesh
         ModelBuilder builder = new ModelBuilder();
         builder.begin();
         
@@ -353,7 +349,7 @@ public class BlockManager {
         Vector3 normal = new Vector3();
         float s = blockSize;
         
-        // 병합된 각 면을 렌더링
+        // Render each merged face
         for (GreedyMeshBuilder.MergedQuad quad : mergedQuads) {
             Vector3 origin = quad.origin;
             int width = quad.width;
@@ -361,13 +357,13 @@ public class BlockManager {
             int blockType = quad.blockType;
             int direction = quad.direction;
             
-            // UV 계산 (블록 타입에 따라 아틀라스 타일 위치 결정)
+            // UV calculation (determine atlas tile position by block type)
             int tileX = blockType % atlasGridSize;
             int tileY = blockType / atlasGridSize;
             float u = tileX * tileSize;
             float v = tileY * tileSize;
             
-            // 방향에 따라 큰 면 생성 (UV 반복 적용)
+            // Create large face according to direction (apply repeating UV)
             createMergedFaceWithRepeatingUV(meshBuilder, origin, width, height, direction, s, normal, u, v, tileSize);
         }
         
@@ -375,56 +371,56 @@ public class BlockManager {
     }
     
     /**
-     * 병합된 큰 면을 작은 1×1 쿼드들로 분할 생성 (Atlas-Safe)
+     * Split merged large face into small 1×1 quads (Atlas-Safe)
      * 
-     * 핵심: width × height 병합 → width × height 개의 개별 쿼드
-     * 각 쿼드는 정확히 1타일 크기의 UV만 사용 (아틀라스 규칙 준수)
+     * Core: width × height merge → width × height individual quads
+     * Each quad uses exactly 1 tile size UV (follows atlas rules)
      * 
-     * 방향별 평면:
-     * - Front/Back (0,1): XY 평면 → width=X, height=Y
-     * - Left/Right (2,3): ZY 평면 → width=Z, height=Y
-     * - Top/Bottom (4,5): XZ 평면 → width=X, height=Z
+     * Planes by direction:
+     * - Front/Back (0,1): XY plane → width=X, height=Y
+     * - Left/Right (2,3): ZY plane → width=Z, height=Y
+     * - Top/Bottom (4,5): XZ plane → width=X, height=Z
      */
     private void createMergedFaceWithRepeatingUV(MeshPartBuilder meshBuilder, Vector3 origin, 
                                                  int width, int height, int direction, 
                                                  float s, Vector3 normal, 
                                                  float u, float v, float tileSize) {
-        // 블록 크기 = 2s (중심에서 ±s)
+        // Block size = 2s (±s from center)
         float blockSize = 2 * s;
         
-        // ✅ 각 1×1 블록 영역마다 개별 쿼드 생성
+        // ✅ Create individual quad for each 1×1 block area
         for (int i = 0; i < width; i++) {
             for (int j = 0; j < height; j++) {
-                // 방향에 따른 오프셋 계산
+                // Calculate offset by direction
                 float offsetX = 0, offsetY = 0, offsetZ = 0;
                 
                 switch (direction) {
-                    case 0: // Front (z+) - XY 평면
-                    case 1: // Back (z-) - XY 평면
-                        offsetX = i * blockSize;  // width = X 방향
-                        offsetY = j * blockSize;  // height = Y 방향
+                    case 0: // Front (z+) - XY plane
+                    case 1: // Back (z-) - XY plane
+                        offsetX = i * blockSize;  // width = X direction
+                        offsetY = j * blockSize;  // height = Y direction
                         break;
                         
-                    case 2: // Left (x-) - ZY 평면
-                    case 3: // Right (x+) - ZY 평면
-                        offsetZ = i * blockSize;  // width = Z 방향
-                        offsetY = j * blockSize;   // height = Y 방향
+                    case 2: // Left (x-) - ZY plane
+                    case 3: // Right (x+) - ZY plane
+                        offsetZ = i * blockSize;  // width = Z direction
+                        offsetY = j * blockSize;   // height = Y direction
                         break;
                         
-                    case 4: // Top (y+) - XZ 평면
-                    case 5: // Bottom (y-) - XZ 평면
-                        offsetX = i * blockSize;   // width = X 방향
-                        offsetZ = j * blockSize;   // height = Z 방향
+                    case 4: // Top (y+) - XZ plane
+                    case 5: // Bottom (y-) - XZ plane
+                        offsetX = i * blockSize;   // width = X direction
+                        offsetZ = j * blockSize;   // height = Z direction
                         break;
                 }
                 
-                // ✅ UV는 항상 1타일 크기만 (아틀라스 경계 안)
+                // ✅ UV always uses only 1 tile size (within atlas boundary)
                 float localU = u;
                 float localV = v;
                 float localU2 = u + tileSize;
                 float localV2 = v + tileSize;
                 
-                // 방향별 1×1 쿼드 생성
+                // Create 1×1 quad by direction
                 createSingleBlockQuad(meshBuilder, origin, offsetX, offsetY, offsetZ, 
                                     direction, s, normal, localU, localV, localU2, localV2);
             }
@@ -432,7 +428,7 @@ public class BlockManager {
     }
     
     /**
-     * 단일 1×1 블록 크기의 쿼드 생성 (아틀라스 안전)
+     * Create single 1×1 block size quad (atlas safe)
      */
     private void createSingleBlockQuad(MeshPartBuilder meshBuilder, Vector3 origin,
                                       float offsetX, float offsetY, float offsetZ,
@@ -442,14 +438,14 @@ public class BlockManager {
         float y = origin.y;
         float z = origin.z;
         
-        // 블록 크기
+        // Block size
         float blockSize = 2 * s;
         
-        // ✅ 1×1 블록 크기 쿼드 (오프셋 적용)
+        // ✅ 1×1 block size quad (apply offset)
         meshBuilder.setUVRange(u, v, u2, v2);
         
         switch (direction) {
-            case 0: // Front (z+) - XY 평면
+            case 0: // Front (z+) - XY plane
                 normal.set(0, 0, 1);
                 meshBuilder.rect(
                     new Vector3(x - s + offsetX, y - s + offsetY, z + s),
@@ -460,7 +456,7 @@ public class BlockManager {
                 );
                 break;
                 
-            case 1: // Back (z-) - XY 평면
+            case 1: // Back (z-) - XY plane
                 normal.set(0, 0, -1);
                 meshBuilder.rect(
                     new Vector3(x + s + offsetX, y - s + offsetY, z - s),
@@ -471,7 +467,7 @@ public class BlockManager {
                 );
                 break;
                 
-            case 2: // Left (x-) - ZY 평면
+            case 2: // Left (x-) - ZY plane
                 normal.set(-1, 0, 0);
                 meshBuilder.rect(
                     new Vector3(x - s, y - s + offsetY, z - s + offsetZ),
@@ -482,7 +478,7 @@ public class BlockManager {
                 );
                 break;
                 
-            case 3: // Right (x+) - ZY 평면
+            case 3: // Right (x+) - ZY plane
                 normal.set(1, 0, 0);
                 meshBuilder.rect(
                     new Vector3(x + s, y - s + offsetY, z + s + offsetZ),
@@ -493,7 +489,7 @@ public class BlockManager {
                 );
                 break;
                 
-            case 4: // Top (y+) - XZ 평면
+            case 4: // Top (y+) - XZ plane
                 normal.set(0, 1, 0);
                 meshBuilder.rect(
                     new Vector3(x - s + offsetX, y + s, z + s + offsetZ),
@@ -504,7 +500,7 @@ public class BlockManager {
                 );
                 break;
                 
-            case 5: // Bottom (y-) - XZ 평면
+            case 5: // Bottom (y-) - XZ plane
                 normal.set(0, -1, 0);
                 meshBuilder.rect(
                     new Vector3(x - s + offsetX, y - s, z - s + offsetZ),

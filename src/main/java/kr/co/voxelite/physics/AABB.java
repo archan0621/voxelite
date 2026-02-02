@@ -67,6 +67,69 @@ public class AABB {
                this.max.y > other.min.y && this.min.y < other.max.y &&
                this.max.z > other.min.z && this.min.z < other.max.z;
     }
+
+    /**
+     * Y-axis direction collision detection - All X/Z/Y must overlap, and X/Z must overlap sufficiently
+     * 
+     * Definition of Y-axis collision:
+     * - Collision that occurs when moving along Y-axis
+     * - Only when Y-axis penetration occurs with sufficient X/Z projection area overlap
+     * - Wall or corner blocks are not Y-axis collisions
+     */
+    public boolean intersectsOnY(AABB other) {
+        float MIN_OVERLAP = 0.01f;  // Minimum overlap threshold
+
+        // 1. Check Y-axis overlap (check first for early exit)
+        boolean yOverlap = this.max.y > other.min.y && this.min.y < other.max.y;
+        if (!yOverlap) {
+            return false;
+        }
+
+        // 2. X/Z axes must overlap sufficiently (actual overlap area must be above threshold)
+        float xOverlap = Math.min(this.max.x, other.max.x) - Math.max(this.min.x, other.min.x);
+        float zOverlap = Math.min(this.max.z, other.max.z) - Math.max(this.min.z, other.min.z);
+
+        // Not a Y-axis collision if X or Z are separated (negative) or only touch at boundary
+        return xOverlap > MIN_OVERLAP && zOverlap > MIN_OVERLAP;
+    }
+
+    /**
+     * X-axis direction collision detection - All Y/Z/X must overlap, and Y/Z must overlap sufficiently
+     */
+    public boolean intersectsOnX(AABB other) {
+        float MIN_OVERLAP = 0.01f;
+
+        // 1. Check X-axis overlap (check first for early exit)
+        boolean xOverlap = this.max.x > other.min.x && this.min.x < other.max.x;
+        if (!xOverlap) {
+            return false;
+        }
+
+        // 2. Y/Z axes must overlap sufficiently
+        float yOverlap = Math.min(this.max.y, other.max.y) - Math.max(this.min.y, other.min.y);
+        float zOverlap = Math.min(this.max.z, other.max.z) - Math.max(this.min.z, other.min.z);
+
+        return yOverlap > MIN_OVERLAP && zOverlap > MIN_OVERLAP;
+    }
+
+    /**
+     * Z-axis direction collision detection - All X/Y/Z must overlap, and X/Y must overlap sufficiently
+     */
+    public boolean intersectsOnZ(AABB other) {
+        float MIN_OVERLAP = 0.01f;
+
+        // 1. Check Z-axis overlap (check first for early exit)
+        boolean zOverlap = this.max.z > other.min.z && this.min.z < other.max.z;
+        if (!zOverlap) {
+            return false;
+        }
+
+        // 2. X/Y axes must overlap sufficiently
+        float xOverlap = Math.min(this.max.x, other.max.x) - Math.max(this.min.x, other.min.x);
+        float yOverlap = Math.min(this.max.y, other.max.y) - Math.max(this.min.y, other.min.y);
+
+        return xOverlap > MIN_OVERLAP && yOverlap > MIN_OVERLAP;
+    }
     
     public void offset(float dx, float dy, float dz) {
         center.add(dx, dy, dz);

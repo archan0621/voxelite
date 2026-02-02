@@ -53,14 +53,23 @@ public class VoxeliteEngine {
      * Create engine with default configuration
      */
     public VoxeliteEngine() {
-        this(new VoxeliteConfig());
+        this(new VoxeliteConfig(), null);
     }
     
     /**
      * Create engine with custom configuration
      */
     public VoxeliteEngine(VoxeliteConfig config) {
+        this(config, null);
+    }
+    
+    /**
+     * Create engine with custom configuration and custom player
+     * Allows game applications to provide their own Player subclass
+     */
+    public VoxeliteEngine(VoxeliteConfig config, Player customPlayer) {
         this.config = config;
+        this.player = customPlayer;  // Will be initialized later if null
     }
     
     /**
@@ -103,7 +112,7 @@ public class VoxeliteEngine {
         float spawnY = config.playerStartPosition.y;
         if (config.autoCreateGround) {
             if (config.chunkGenerator != null && config.chunkLoadPolicy != null) {
-                // 청크 시스템 (정책 주입)
+                // Chunk system (policy injection)
                 world.initWithChunks(config.worldSavePath, config.defaultGroundBlockType,
                                     config.chunkGenerator, config.chunkLoadPolicy);
                 float terrainHeight = world.generateInitialChunks(
@@ -114,19 +123,25 @@ public class VoxeliteEngine {
                 );
                 spawnY = terrainHeight + 2f;
             } else if (config.useRandomTerrain) {
-                // 기존 랜덤 지형 (deprecated)
-                // Note: World.generateRandomTerrain() 메서드는 더 이상 존재하지 않음
-                // 청크 시스템을 사용하세요
+                // Legacy random terrain (deprecated)
+                // Note: World.generateRandomTerrain() method no longer exists
+                // Use chunk system instead
                 throw new UnsupportedOperationException("Use chunk system instead: .useChunkSystem(true)");
             } else {
-                // 기존 평평한 지형 (deprecated)
+                // Legacy flat terrain (deprecated)
                 throw new UnsupportedOperationException("Use chunk system instead: .useChunkSystem(true)");
             }
         }
         
-        // Create player
-        Vector3 adjustedSpawn = new Vector3(config.playerStartPosition.x, spawnY, config.playerStartPosition.z);
-        player = new Player(adjustedSpawn);
+        // Create player (only if not provided by application)
+        if (player == null) {
+            Vector3 adjustedSpawn = new Vector3(config.playerStartPosition.x, spawnY, config.playerStartPosition.z);
+            player = new Player(adjustedSpawn);
+        } else {
+            // Custom player provided by application - just set position
+            Vector3 adjustedSpawn = new Vector3(config.playerStartPosition.x, spawnY, config.playerStartPosition.z);
+            player.setPosition(adjustedSpawn);
+        }
         
         // Create camera
         camera = new FPSCamera(config.fieldOfView, screenWidth, screenHeight);
@@ -166,7 +181,7 @@ public class VoxeliteEngine {
             chunkUpdateAccumulator -= CHUNK_UPDATE_INTERVAL;
         }
         
-        // Process pending chunks every frame (빠른 반응성)
+        // Process pending chunks every frame (fast responsiveness)
         if (world.getChunkManager() != null) {
             world.processPendingChunks();
         }
@@ -194,7 +209,7 @@ public class VoxeliteEngine {
             throw new IllegalStateException("Engine not initialized. Call initialize() first.");
         }
         
-        renderer.render(camera, world, screenWidth, screenHeight, selectedBlock);
+        renderer.render(camera, world, screenWidth, screenHeight, selectedBlock, player.getPosition());
     }
     
     /**
@@ -265,12 +280,20 @@ public class VoxeliteEngine {
     }
     
     /**
+     * Replace the camera controller with a custom implementation.
+     * Allows game applications to provide their own camera controller logic.
+     */
+    public void setCameraController(kr.co.voxelite.camera.CameraController controller) {
+        this.cameraController = controller;
+    }
+    
+    /**
      * Add block to world and invalidate physics cache
      */
     public void addBlock(Vector3 position, int blockType) {
         if (world != null) {
             world.addBlock(position, blockType);
-            // 블록 추가 시 물리 시스템 캐시 무효화
+            // Invalidate physics system cache when adding block
             if (physics != null) {
                 physics.invalidateCache();
             }
@@ -290,7 +313,7 @@ public class VoxeliteEngine {
     public boolean removeBlock(Vector3 position) {
         if (world != null) {
             boolean removed = world.removeBlock(position);
-            // 블록 제거 시 물리 시스템 캐시 무효화
+            // Invalidate physics system cache when removing block
             if (removed && physics != null) {
                 physics.invalidateCache();
             }
@@ -311,11 +334,20 @@ public class VoxeliteEngine {
     // Builder pattern
     
     public static Builder builder() {
-        return new Builder();
+        return new Builder(null);
+    }
+    
+    public static Builder builder(Player customPlayer) {
+        return new Builder(customPlayer);
     }
     
     public static class Builder {
         private final VoxeliteConfig.Builder configBuilder = VoxeliteConfig.builder();
+        private final Player customPlayer;
+        
+        private Builder(Player customPlayer) {
+            this.customPlayer = customPlayer;
+        }
         
         public Builder worldSize(int width, int height) {
             configBuilder.worldSize(width, height);
@@ -398,7 +430,7 @@ public class VoxeliteEngine {
         }
         
         public VoxeliteEngine build() {
-            return new VoxeliteEngine(configBuilder.build());
+            return new VoxeliteEngine(configBuilder.build(), customPlayer);
         }
     }
 }
