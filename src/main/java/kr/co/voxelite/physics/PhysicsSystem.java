@@ -85,8 +85,14 @@ public class PhysicsSystem {
     
     /**
      * Applies gravity and clamps to terminal velocity.
+     * Skips gravity in fly mode.
      */
     private void applyGravity(Player player, float delta) {
+        // Extension point: gravity can be disabled by subclasses (e.g., fly mode, creative mode)
+        if (!player.isGravityEnabled()) {
+            return;
+        }
+        
         if (!player.isOnGround()) {
             player.getVelocity().y += Player.GRAVITY * delta;
             

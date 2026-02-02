@@ -53,14 +53,23 @@ public class VoxeliteEngine {
      * Create engine with default configuration
      */
     public VoxeliteEngine() {
-        this(new VoxeliteConfig());
+        this(new VoxeliteConfig(), null);
     }
     
     /**
      * Create engine with custom configuration
      */
     public VoxeliteEngine(VoxeliteConfig config) {
+        this(config, null);
+    }
+    
+    /**
+     * Create engine with custom configuration and custom player
+     * Allows game applications to provide their own Player subclass
+     */
+    public VoxeliteEngine(VoxeliteConfig config, Player customPlayer) {
         this.config = config;
+        this.player = customPlayer;  // Will be initialized later if null
     }
     
     /**
@@ -124,9 +133,15 @@ public class VoxeliteEngine {
             }
         }
         
-        // Create player
-        Vector3 adjustedSpawn = new Vector3(config.playerStartPosition.x, spawnY, config.playerStartPosition.z);
-        player = new Player(adjustedSpawn);
+        // Create player (only if not provided by application)
+        if (player == null) {
+            Vector3 adjustedSpawn = new Vector3(config.playerStartPosition.x, spawnY, config.playerStartPosition.z);
+            player = new Player(adjustedSpawn);
+        } else {
+            // Custom player provided by application - just set position
+            Vector3 adjustedSpawn = new Vector3(config.playerStartPosition.x, spawnY, config.playerStartPosition.z);
+            player.setPosition(adjustedSpawn);
+        }
         
         // Create camera
         camera = new FPSCamera(config.fieldOfView, screenWidth, screenHeight);
@@ -265,6 +280,14 @@ public class VoxeliteEngine {
     }
     
     /**
+     * Replace the camera controller with a custom implementation.
+     * Allows game applications to provide their own camera controller logic.
+     */
+    public void setCameraController(kr.co.voxelite.camera.CameraController controller) {
+        this.cameraController = controller;
+    }
+    
+    /**
      * Add block to world and invalidate physics cache
      */
     public void addBlock(Vector3 position, int blockType) {
@@ -311,11 +334,20 @@ public class VoxeliteEngine {
     // Builder pattern
     
     public static Builder builder() {
-        return new Builder();
+        return new Builder(null);
+    }
+    
+    public static Builder builder(Player customPlayer) {
+        return new Builder(customPlayer);
     }
     
     public static class Builder {
         private final VoxeliteConfig.Builder configBuilder = VoxeliteConfig.builder();
+        private final Player customPlayer;
+        
+        private Builder(Player customPlayer) {
+            this.customPlayer = customPlayer;
+        }
         
         public Builder worldSize(int width, int height) {
             configBuilder.worldSize(width, height);
@@ -398,7 +430,7 @@ public class VoxeliteEngine {
         }
         
         public VoxeliteEngine build() {
-            return new VoxeliteEngine(configBuilder.build());
+            return new VoxeliteEngine(configBuilder.build(), customPlayer);
         }
     }
 }
