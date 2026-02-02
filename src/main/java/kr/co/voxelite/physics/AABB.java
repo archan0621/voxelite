@@ -69,43 +69,43 @@ public class AABB {
     }
 
     /**
-     * Y축 방향 충돌 검사 - X/Z/Y 모두 겹쳐야 하며, X/Z는 충분히 겹쳐야 함
+     * Y-axis direction collision detection - All X/Z/Y must overlap, and X/Z must overlap sufficiently
      * 
-     * Y축 충돌의 정의:
-     * - Y축으로 이동할 때 발생하는 충돌
-     * - X/Z 투영 영역이 충분히 겹친 상태에서 Y축 침투가 발생한 경우만
-     * - 벽이나 모서리 블록은 Y축 충돌이 아님
+     * Definition of Y-axis collision:
+     * - Collision that occurs when moving along Y-axis
+     * - Only when Y-axis penetration occurs with sufficient X/Z projection area overlap
+     * - Wall or corner blocks are not Y-axis collisions
      */
     public boolean intersectsOnY(AABB other) {
-        float MIN_OVERLAP = 0.01f;  // 최소 겹침 임계값
+        float MIN_OVERLAP = 0.01f;  // Minimum overlap threshold
 
-        // 1. Y축 겹침 확인 (먼저 체크하여 조기 탈출)
+        // 1. Check Y-axis overlap (check first for early exit)
         boolean yOverlap = this.max.y > other.min.y && this.min.y < other.max.y;
         if (!yOverlap) {
             return false;
         }
 
-        // 2. X/Z축이 충분히 겹쳐야 함 (실제 겹침 영역이 임계값 이상)
+        // 2. X/Z axes must overlap sufficiently (actual overlap area must be above threshold)
         float xOverlap = Math.min(this.max.x, other.max.x) - Math.max(this.min.x, other.min.x);
         float zOverlap = Math.min(this.max.z, other.max.z) - Math.max(this.min.z, other.min.z);
 
-        // X 또는 Z가 떨어져 있거나(음수) 경계만 터치하면 Y축 충돌 아님
+        // Not a Y-axis collision if X or Z are separated (negative) or only touch at boundary
         return xOverlap > MIN_OVERLAP && zOverlap > MIN_OVERLAP;
     }
 
     /**
-     * X축 방향 충돌 검사 - Y/Z/X 모두 겹쳐야 하며, Y/Z는 충분히 겹쳐야 함
+     * X-axis direction collision detection - All Y/Z/X must overlap, and Y/Z must overlap sufficiently
      */
     public boolean intersectsOnX(AABB other) {
         float MIN_OVERLAP = 0.01f;
 
-        // 1. X축 겹침 확인 (먼저 체크하여 조기 탈출)
+        // 1. Check X-axis overlap (check first for early exit)
         boolean xOverlap = this.max.x > other.min.x && this.min.x < other.max.x;
         if (!xOverlap) {
             return false;
         }
 
-        // 2. Y/Z축이 충분히 겹쳐야 함
+        // 2. Y/Z axes must overlap sufficiently
         float yOverlap = Math.min(this.max.y, other.max.y) - Math.max(this.min.y, other.min.y);
         float zOverlap = Math.min(this.max.z, other.max.z) - Math.max(this.min.z, other.min.z);
 
@@ -113,18 +113,18 @@ public class AABB {
     }
 
     /**
-     * Z축 방향 충돌 검사 - X/Y/Z 모두 겹쳐야 하며, X/Y는 충분히 겹쳐야 함
+     * Z-axis direction collision detection - All X/Y/Z must overlap, and X/Y must overlap sufficiently
      */
     public boolean intersectsOnZ(AABB other) {
         float MIN_OVERLAP = 0.01f;
 
-        // 1. Z축 겹침 확인 (먼저 체크하여 조기 탈출)
+        // 1. Check Z-axis overlap (check first for early exit)
         boolean zOverlap = this.max.z > other.min.z && this.min.z < other.max.z;
         if (!zOverlap) {
             return false;
         }
 
-        // 2. X/Y축이 충분히 겹쳐야 함
+        // 2. X/Y axes must overlap sufficiently
         float xOverlap = Math.min(this.max.x, other.max.x) - Math.max(this.min.x, other.min.x);
         float yOverlap = Math.min(this.max.y, other.max.y) - Math.max(this.min.y, other.min.y);
 

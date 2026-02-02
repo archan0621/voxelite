@@ -8,8 +8,8 @@ import java.util.*;
 import java.util.concurrent.*;
 
 /**
- * Manages chunk loading/unloading (라이브러리 레벨)
- * 정책은 외부에서 주입받음
+ * Manages chunk loading/unloading (library level)
+ * Policies are injected from outside
  */
 public class ChunkManager {
     private final Map<ChunkCoord, Chunk> loadedChunks;
@@ -17,7 +17,7 @@ public class ChunkManager {
     private final String worldPath;
     private final int defaultBlockType;
     
-    // 정책 주입
+    // Policy injection
     private final IChunkGenerator chunkGenerator;
     private final IChunkLoadPolicy loadPolicy;
     
@@ -25,12 +25,15 @@ public class ChunkManager {
     private final Queue<Chunk> pendingChunks;
     private volatile boolean chunksChanged = false;
     
-    // 청크 경계 추적
+    // Track chunk boundary
     private ChunkCoord lastPlayerChunk = null;
     
-    // 재사용 가능한 컬렉션 (GC 감소)
+    // Reusable collections (reduce GC)
     private final Set<ChunkCoord> requiredChunksCache = new HashSet<>();
-    private final Map<String, ChunkCoord> chunkCoordCache = new HashMap<>(); // ChunkCoord 캐싱
+    private final Map<String, ChunkCoord> chunkCoordCache = new HashMap<>(); // ChunkCoord caching
+    
+    // ✅ Track loading chunks (prevent duplicates + solve placeholder issue)
+    private final Set<ChunkCoord> loadingChunks = ConcurrentHashMap.newKeySet();
     
     public ChunkManager(String worldPath, int defaultBlockType, 
                        IChunkGenerator chunkGenerator, IChunkLoadPolicy loadPolicy) {
@@ -48,7 +51,7 @@ public class ChunkManager {
     }
     
     /**
-     * Get or create cached ChunkCoord (객체 재사용)
+     * Get or create cached ChunkCoord (object reuse)
      */
     private ChunkCoord getOrCreateChunkCoord(int x, int z) {
         String key = x + "," + z;
@@ -61,23 +64,23 @@ public class ChunkManager {
     }
     
     /**
-     * Update loaded chunks (청크 경계 이동 시에만)
+     * Update loaded chunks (only when crossing chunk boundary)
      */
     public void updateLoadedChunks(float playerX, float playerZ) {
         ChunkCoord playerChunk = ChunkCoord.fromWorldPos(playerX, playerZ, Chunk.CHUNK_SIZE);
         
-        // ✅ 청크 경계 이동 체크
+        // ✅ Check chunk boundary crossing
         if (lastPlayerChunk != null && lastPlayerChunk.equals(playerChunk)) {
-            // 같은 청크 내에서는 processPendingChunks만 실행
+            // Within same chunk, only execute processPendingChunks
             processPendingChunks();
             return;
         }
         
-        // 청크 경계 이동 발생!
+        // Chunk boundary crossed!
         lastPlayerChunk = playerChunk;
-        requiredChunksCache.clear(); // 재사용
+        requiredChunksCache.clear(); // Reuse
         
-        // 정책에 따라 청크 처리
+        // Process chunks according to policy
         int searchRadius = Math.max(10, loadPolicy.getMaxLoadedChunks() / 10);
         
         for (int dx = -searchRadius; dx <= searchRadius; dx++) {
@@ -86,7 +89,7 @@ public class ChunkManager {
                 int chunkZ = playerChunk.z + dz;
                 ChunkCoord coord = getOrCreateChunkCoord(chunkX, chunkZ);
                 
-                // 1. 메모리 로드 판정
+                // 1. Memory load decision
                 if (loadPolicy.shouldLoadToMemory(chunkX, chunkZ, playerChunk.x, playerChunk.z)) {
                     requiredChunksCache.add(coord);
                     if (!loadedChunks.containsKey(coord)) {
@@ -96,7 +99,7 @@ public class ChunkManager {
                     }
                 }
                 
-                // 2. 사전 생성 판정 (파일만)
+                // 2. Pregeneration decision (file only)
                 else if (loadPolicy.shouldPregenerate(chunkX, chunkZ, playerChunk.x, playerChunk.z)) {
                     if (!ChunkSerializer.chunkFileExists(worldPath, coord)) {
                         pregenerateChunkToDisk(coord);
@@ -105,7 +108,7 @@ public class ChunkManager {
             }
         }
         
-        // 메모리 제한 확인
+        // Check memory limit
         if (loadedChunks.size() > loadPolicy.getMaxLoadedChunks()) {
             unloadOldChunks(requiredChunksCache);
         }
@@ -135,9 +138,9 @@ public class ChunkManager {
      */
     private void unloadOldChunks(Set<ChunkCoord> protectedChunks) {
         List<Map.Entry<ChunkCoord, Long>> sorted = new ArrayList<>(chunkAccessTime.entrySet());
-        sorted.sort(Map.Entry.comparingByValue()); // 오래된 순
+        sorted.sort(Map.Entry.comparingByValue()); // Oldest first
         
-        int toRemove = loadedChunks.size() - loadPolicy.getMaxLoadedChunks() + 10; // 10개 추가 제거
+        int toRemove = loadedChunks.size() - loadPolicy.getMaxLoadedChunks() + 10; // Remove 10 extra
         int removed = 0;
         
         for (Map.Entry<ChunkCoord, Long> entry : sorted) {
@@ -145,14 +148,14 @@ public class ChunkManager {
             
             ChunkCoord coord = entry.getKey();
             
-            // 보호된 청크(렌더 거리 내)는 언로드 안함
+            // Don't unload protected chunks (within render distance)
             if (protectedChunks.contains(coord)) {
                 continue;
             }
             
             Chunk chunk = loadedChunks.get(coord);
             if (chunk != null && chunk.isGenerated()) {
-                // 디스크에 저장
+                // Save to disk
                 try {
                     ChunkSerializer.saveChunk(chunk, ChunkSerializer.getChunkFile(worldPath, coord));
                 } catch (IOException e) {
@@ -170,63 +173,115 @@ public class ChunkManager {
     
     /**
      * Load or generate chunk asynchronously
+     * ✅ Modified: Create placeholder but never replace it
      */
     private void loadOrGenerateChunkAsync(ChunkCoord coord) {
+        // If already loaded, only update access time
         if (loadedChunks.containsKey(coord)) {
             chunkAccessTime.put(coord, System.currentTimeMillis());
             return;
         }
         
-        loadedChunks.put(coord, new Chunk(coord)); // placeholder
+        // Skip if already loading
+        if (loadingChunks.contains(coord)) {
+            return;
+        }
+        
+        // ✅ Create placeholder (this object will never be replaced)
+        Chunk chunk = loadedChunks.computeIfAbsent(coord, c -> new Chunk(c));
+        
+        // ✅ Mark as loading (prevent duplicates)
+        loadingChunks.add(coord);
         
         executorService.submit(() -> {
             try {
-                Chunk chunk;
+                File chunkFile = ChunkSerializer.getChunkFile(worldPath, coord);
                 
-                // 디스크에서 로드 시도
+                // Try loading from disk
                 if (ChunkSerializer.chunkFileExists(worldPath, coord)) {
                     try {
-                        chunk = ChunkSerializer.loadChunk(ChunkSerializer.getChunkFile(worldPath, coord));
+                        // ✅ Fill data into existing object
+                        ChunkSerializer.loadInto(chunk, chunkFile);
                     } catch (IOException e) {
-                        chunk = new Chunk(coord);
+                        // Generate new if load fails
                         chunkGenerator.generateChunk(chunk, defaultBlockType);
+                        chunk.markAsGenerated();
                     }
                 } else {
-                    // 새로 생성
-                    chunk = new Chunk(coord);
+                    // Generate new
                     chunkGenerator.generateChunk(chunk, defaultBlockType);
+                    chunk.markAsGenerated();
                     
-                    // 디스크에 저장
-                    try {
-                        ChunkSerializer.saveChunk(chunk, ChunkSerializer.getChunkFile(worldPath, coord));
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
+                    // Save to disk (commented out)
+                    // try {
+                    //     ChunkSerializer.saveChunk(chunk, chunkFile);
+                    // } catch (IOException e) {
+                    //     e.printStackTrace();
+                    // }
                 }
                 
+                // ✅ Loading complete - add to pendingChunks
                 pendingChunks.offer(chunk);
+                
             } catch (Exception e) {
                 e.printStackTrace();
+                loadingChunks.remove(coord); // Remove loading flag on failure
             }
         });
     }
     
     /**
      * Process chunks generated in background (call from main thread)
+     * ✅ Modified: Only remove from loadingChunks (object already in loadedChunks)
      */
     private void processPendingChunks() {
         Chunk chunk;
         int processed = 0;
-        while ((chunk = pendingChunks.poll()) != null && processed < 4) { // 프레임당 최대 4개 청크
-            loadedChunks.put(chunk.getCoord(), chunk);
-            chunkAccessTime.put(chunk.getCoord(), System.currentTimeMillis());
+        List<ChunkCoord> generatedChunks = new ArrayList<>();
+        
+        while ((chunk = pendingChunks.poll()) != null && processed < 4) { // Max 4 chunks per frame
+            ChunkCoord coord = chunk.getCoord();
+            
+            // ✅ Loading complete - only remove from loadingChunks
+            loadingChunks.remove(coord);
+            
+            // ✅ Update access time (object already in loadedChunks)
+            chunkAccessTime.put(coord, System.currentTimeMillis());
             chunksChanged = true;
+            generatedChunks.add(coord);
             processed++;
+        }
+        
+        // ✅ Invalidate adjacent chunk meshes
+        for (ChunkCoord coord : generatedChunks) {
+            invalidateAdjacentChunkMeshes(coord);
         }
     }
     
     /**
-     * Public method for processing pending chunks (매 프레임 호출)
+     * Invalidate meshes of adjacent chunks
+     * ✅ Trigger mesh regeneration so adjacent chunk faces become visible when chunk is created
+     */
+    private void invalidateAdjacentChunkMeshes(ChunkCoord center) {
+        ChunkCoord[] adjacents = {
+            center.left(),
+            center.right(),
+            center.front(),
+            center.back()
+        };
+        
+        for (ChunkCoord adj : adjacents) {
+            Chunk chunk = loadedChunks.get(adj);
+            if (chunk != null && chunk.isGenerated()) {
+                // Set mesh to null to trigger regeneration
+                chunk.setMesh(null);
+                chunksChanged = true;
+            }
+        }
+    }
+    
+    /**
+     * Public method for processing pending chunks (call every frame)
      */
     public void processPendingChunksPublic() {
         processPendingChunks();
@@ -240,7 +295,7 @@ public class ChunkManager {
         int generated = 0;
         int loaded = 0;
         
-        // 1. 파일로 생성
+        // 1. Generate to file
         for (int dx = -totalRadius; dx <= totalRadius; dx++) {
             for (int dz = -totalRadius; dz <= totalRadius; dz++) {
                 ChunkCoord coord = new ChunkCoord(center.x + dx, center.z + dz);
@@ -259,7 +314,7 @@ public class ChunkManager {
             }
         }
         
-        // 2. 메모리 로드
+        // 2. Load to memory
         for (int dx = -loadRadius; dx <= loadRadius; dx++) {
             for (int dz = -loadRadius; dz <= loadRadius; dz++) {
                 ChunkCoord coord = new ChunkCoord(center.x + dx, center.z + dz);
@@ -296,8 +351,11 @@ public class ChunkManager {
             return null;
         }
         
-        int localX = (int) (worldPos.x - coord.x * Chunk.CHUNK_SIZE);
-        int localZ = (int) (worldPos.z - coord.z * Chunk.CHUNK_SIZE);
+        // ✅ 음수 좌표 안전: Math.floor → Math.floorMod
+        int blockX = (int) Math.floor(worldPos.x);
+        int blockZ = (int) Math.floor(worldPos.z);
+        int localX = Math.floorMod(blockX, Chunk.CHUNK_SIZE);
+        int localZ = Math.floorMod(blockZ, Chunk.CHUNK_SIZE);
         
         return chunk.getBlock(localX, worldPos.y, localZ);
     }
@@ -310,11 +368,14 @@ public class ChunkManager {
         Chunk chunk = loadedChunks.get(coord);
         
         if (chunk == null || !chunk.isGenerated()) {
-            return false;
+            return true;  // UNKNOWN = AIR
         }
         
-        int localX = (int) (worldX - coord.x * Chunk.CHUNK_SIZE);
-        int localZ = (int) (worldZ - coord.z * Chunk.CHUNK_SIZE);
+        // ✅ Negative coordinate safe: Math.floor → Math.floorMod
+        int blockX = (int) Math.floor(worldX);
+        int blockZ = (int) Math.floor(worldZ);
+        int localX = Math.floorMod(blockX, Chunk.CHUNK_SIZE);
+        int localZ = Math.floorMod(blockZ, Chunk.CHUNK_SIZE);
         
         return chunk.hasBlockAt(localX, worldY, localZ);
     }
@@ -342,8 +403,11 @@ public class ChunkManager {
             return false;
         }
         
-        int localX = (int) (worldPos.x - coord.x * Chunk.CHUNK_SIZE);
-        int localZ = (int) (worldPos.z - coord.z * Chunk.CHUNK_SIZE);
+        // ✅ Negative coordinate safe: Math.floor → Math.floorMod
+        int blockX = (int) Math.floor(worldPos.x);
+        int blockZ = (int) Math.floor(worldPos.z);
+        int localX = Math.floorMod(blockX, Chunk.CHUNK_SIZE);
+        int localZ = Math.floorMod(blockZ, Chunk.CHUNK_SIZE);
         
         return chunk.removeBlock(localX, worldPos.y, localZ);
     }
@@ -385,8 +449,31 @@ public class ChunkManager {
     }
     
     /**
+     * Get snapshot of all block positions as world coordinates (thread-safe)
+     * ✅ Prevents ConcurrentModificationException
+     */
+    public List<Vector3> getBlockPositionsSnapshot() {
+        List<Vector3> snapshot = new ArrayList<>();
+        
+        for (Chunk chunk : loadedChunks.values()) {
+            if (!chunk.isGenerated()) continue;
+            
+            ChunkCoord coord = chunk.getCoord();
+            for (BlockPos localPos : chunk.getBlockPosSnapshot()) {
+                // Local → World coordinate conversion
+                float worldX = coord.x * Chunk.CHUNK_SIZE + localPos.x();
+                float worldY = localPos.y();
+                float worldZ = coord.z * Chunk.CHUNK_SIZE + localPos.z();
+                snapshot.add(new Vector3(worldX, worldY, worldZ));
+            }
+        }
+        
+        return snapshot;
+    }
+    
+    /**
      * Get nearby chunks within radius (for physics/collision)
-     * @param radius 청크 반경 (1 = 3x3, 2 = 5x5)
+     * @param radius Chunk radius (1 = 3x3, 2 = 5x5)
      */
     public List<Chunk> getNearbyChunks(float worldX, float worldZ, int radius) {
         ChunkCoord centerChunk = ChunkCoord.fromWorldPos(worldX, worldZ, Chunk.CHUNK_SIZE);

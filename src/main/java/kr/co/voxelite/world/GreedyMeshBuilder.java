@@ -4,24 +4,24 @@ import com.badlogic.gdx.math.Vector3;
 import java.util.*;
 
 /**
- * Greedy Meshing 알고리즘 구현
+ * Greedy Meshing algorithm implementation
  * 
- * 원리:
- * 1. 각 방향(6면)별로 독립적으로 처리
- * 2. 같은 블록 타입 + 같은 가시성을 가진 인접 면들을 병합
- * 3. 직사각형 확장: 오른쪽으로 확장 → 아래로 확장
+ * Principle:
+ * 1. Process each direction (6 faces) independently
+ * 2. Merge adjacent faces with same block type + same visibility
+ * 3. Rectangle expansion: expand right → expand down
  */
 public class GreedyMeshBuilder {
     
     /**
-     * 병합된 면 정보
+     * Merged face information
      */
     public static class MergedQuad {
-        public final Vector3 origin;      // 시작 위치
-        public final int width;            // X 또는 Z 방향 너비
-        public final int height;           // Y 방향 높이
-        public final int blockType;        // 블록 타입
-        public final int direction;        // 방향 (0~5)
+        public final Vector3 origin;      // Start position
+        public final int width;            // Width in X or Z direction
+        public final int height;           // Height in Y direction
+        public final int blockType;        // Block type
+        public final int direction;        // Direction (0~5)
         
         public MergedQuad(Vector3 origin, int width, int height, int blockType, int direction) {
             this.origin = origin;
@@ -33,7 +33,7 @@ public class GreedyMeshBuilder {
     }
     
     /**
-     * 블록 데이터를 3D 배열로 변환
+     * Converts block data to 3D array
      */
     private static class VoxelGrid {
         private final Map<String, BlockInfo> grid;
@@ -53,7 +53,7 @@ public class GreedyMeshBuilder {
         public VoxelGrid(List<BlockManager.BlockData> blocks, Map<Vector3, boolean[]> visibleFacesMap) {
             this.grid = new HashMap<>();
             
-            // 범위 계산
+            // Calculate bounds
             int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE, minZ = Integer.MAX_VALUE;
             int maxX = Integer.MIN_VALUE, maxY = Integer.MIN_VALUE, maxZ = Integer.MIN_VALUE;
             
@@ -104,7 +104,7 @@ public class GreedyMeshBuilder {
     }
     
     /**
-     * Greedy Meshing 메인 함수
+     * Greedy Meshing main function
      */
     public static List<MergedQuad> buildGreedyMesh(
             List<BlockManager.BlockData> blocks, 
@@ -117,7 +117,7 @@ public class GreedyMeshBuilder {
         VoxelGrid grid = new VoxelGrid(blocks, visibleFacesMap);
         List<MergedQuad> quads = new ArrayList<>();
         
-        // 각 방향별로 처리
+        // Process each direction
         // 0: Front (z+), 1: Back (z-), 2: Left (x-), 3: Right (x+), 4: Top (y+), 5: Bottom (y-)
         quads.addAll(buildFacesForDirection(grid, 0)); // Front
         quads.addAll(buildFacesForDirection(grid, 1)); // Back
@@ -130,12 +130,12 @@ public class GreedyMeshBuilder {
     }
     
     /**
-     * 특정 방향의 면들을 Greedy Meshing으로 병합
+     * Merges faces in a specific direction using Greedy Meshing
      */
     private static List<MergedQuad> buildFacesForDirection(VoxelGrid grid, int direction) {
         List<MergedQuad> quads = new ArrayList<>();
         
-        // 방향에 따라 순회 순서 결정
+        // Determine traversal order based on direction
         switch (direction) {
             case 0: // Front (z+)
             case 1: // Back (z-)
@@ -155,7 +155,7 @@ public class GreedyMeshBuilder {
     }
     
     /**
-     * XY 평면 (Front/Back 방향)
+     * XY plane (Front/Back direction)
      */
     private static void buildFacesXY(VoxelGrid grid, int direction, List<MergedQuad> quads) {
         boolean[][][] visited = new boolean[grid.maxX - grid.minX + 1]
@@ -184,11 +184,11 @@ public class GreedyMeshBuilder {
                         width++;
                     }
                     
-                    // Y 방향으로 확장
+                    // Expand in Y direction
                     int height = 1;
                     boolean canExpandY = true;
                     while (canExpandY && y + height <= grid.maxY) {
-                        // 확장된 너비만큼 모두 체크
+                        // Check all blocks within expanded width
                         for (int dx = 0; dx < width; dx++) {
                             if (visited[x + dx - grid.minX][y + height - grid.minY][z - grid.minZ] ||
                                 !grid.hasFace(x + dx, y + height, z, direction) ||
@@ -202,11 +202,11 @@ public class GreedyMeshBuilder {
                         }
                     }
                     
-                    // 병합된 면 생성
+                    // Create merged face
                     Vector3 origin = new Vector3(x, y, z);
                     quads.add(new MergedQuad(origin, width, height, blockType, direction));
                     
-                    // 방문 표시
+                    // Mark as visited
                     for (int dy = 0; dy < height; dy++) {
                         for (int dx = 0; dx < width; dx++) {
                             visited[x + dx - grid.minX][y + dy - grid.minY][z - grid.minZ] = true;
@@ -218,7 +218,7 @@ public class GreedyMeshBuilder {
     }
     
     /**
-     * ZY 평면 (Left/Right 방향)
+     * ZY plane (Left/Right direction)
      */
     private static void buildFacesZY(VoxelGrid grid, int direction, List<MergedQuad> quads) {
         boolean[][][] visited = new boolean[grid.maxX - grid.minX + 1]
@@ -238,7 +238,7 @@ public class GreedyMeshBuilder {
                     
                     int blockType = grid.getBlockType(x, y, z);
                     
-                    // Z 방향으로 확장
+                    // Expand in Z direction
                     int width = 1;
                     while (z + width <= grid.maxZ &&
                            !visited[x - grid.minX][y - grid.minY][z + width - grid.minZ] &&
@@ -247,7 +247,7 @@ public class GreedyMeshBuilder {
                         width++;
                     }
                     
-                    // Y 방향으로 확장
+                    // Expand in Y direction
                     int height = 1;
                     boolean canExpandY = true;
                     while (canExpandY && y + height <= grid.maxY) {
@@ -278,7 +278,7 @@ public class GreedyMeshBuilder {
     }
     
     /**
-     * XZ 평면 (Top/Bottom 방향)
+     * XZ plane (Top/Bottom direction)
      */
     private static void buildFacesXZ(VoxelGrid grid, int direction, List<MergedQuad> quads) {
         boolean[][][] visited = new boolean[grid.maxX - grid.minX + 1]
@@ -307,7 +307,7 @@ public class GreedyMeshBuilder {
                         width++;
                     }
                     
-                    // Z 방향으로 확장
+                    // Expand in Z direction
                     int depth = 1;
                     boolean canExpandZ = true;
                     while (canExpandZ && z + depth <= grid.maxZ) {

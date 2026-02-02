@@ -103,7 +103,7 @@ public class VoxeliteEngine {
         float spawnY = config.playerStartPosition.y;
         if (config.autoCreateGround) {
             if (config.chunkGenerator != null && config.chunkLoadPolicy != null) {
-                // 청크 시스템 (정책 주입)
+                // Chunk system (policy injection)
                 world.initWithChunks(config.worldSavePath, config.defaultGroundBlockType,
                                     config.chunkGenerator, config.chunkLoadPolicy);
                 float terrainHeight = world.generateInitialChunks(
@@ -114,12 +114,12 @@ public class VoxeliteEngine {
                 );
                 spawnY = terrainHeight + 2f;
             } else if (config.useRandomTerrain) {
-                // 기존 랜덤 지형 (deprecated)
-                // Note: World.generateRandomTerrain() 메서드는 더 이상 존재하지 않음
-                // 청크 시스템을 사용하세요
+                // Legacy random terrain (deprecated)
+                // Note: World.generateRandomTerrain() method no longer exists
+                // Use chunk system instead
                 throw new UnsupportedOperationException("Use chunk system instead: .useChunkSystem(true)");
             } else {
-                // 기존 평평한 지형 (deprecated)
+                // Legacy flat terrain (deprecated)
                 throw new UnsupportedOperationException("Use chunk system instead: .useChunkSystem(true)");
             }
         }
@@ -166,7 +166,7 @@ public class VoxeliteEngine {
             chunkUpdateAccumulator -= CHUNK_UPDATE_INTERVAL;
         }
         
-        // Process pending chunks every frame (빠른 반응성)
+        // Process pending chunks every frame (fast responsiveness)
         if (world.getChunkManager() != null) {
             world.processPendingChunks();
         }
@@ -194,7 +194,7 @@ public class VoxeliteEngine {
             throw new IllegalStateException("Engine not initialized. Call initialize() first.");
         }
         
-        renderer.render(camera, world, screenWidth, screenHeight, selectedBlock);
+        renderer.render(camera, world, screenWidth, screenHeight, selectedBlock, player.getPosition());
     }
     
     /**
@@ -270,7 +270,7 @@ public class VoxeliteEngine {
     public void addBlock(Vector3 position, int blockType) {
         if (world != null) {
             world.addBlock(position, blockType);
-            // 블록 추가 시 물리 시스템 캐시 무효화
+            // Invalidate physics system cache when adding block
             if (physics != null) {
                 physics.invalidateCache();
             }
@@ -290,7 +290,7 @@ public class VoxeliteEngine {
     public boolean removeBlock(Vector3 position) {
         if (world != null) {
             boolean removed = world.removeBlock(position);
-            // 블록 제거 시 물리 시스템 캐시 무효화
+            // Invalidate physics system cache when removing block
             if (removed && physics != null) {
                 physics.invalidateCache();
             }
