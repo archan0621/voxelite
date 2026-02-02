@@ -75,10 +75,6 @@ public class BlockManager {
         float u2 = u + tileSize;
         float v2 = v + tileSize;
         
-        System.out.println("[BlockManager] Block type " + blockType + 
-            " UV: (" + u + "," + v + ") to (" + u2 + "," + v2 + 
-            ") | Tile: (" + tileX + "," + tileY + ")");
-        
         Material material = new Material(TextureAttribute.createDiffuse(blockAtlas));
         long attributes = VertexAttributes.Usage.Position | 
                          VertexAttributes.Usage.Normal | 

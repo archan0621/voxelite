@@ -155,7 +155,6 @@ public class ChunkManager {
                 // 디스크에 저장
                 try {
                     ChunkSerializer.saveChunk(chunk, ChunkSerializer.getChunkFile(worldPath, coord));
-                    System.out.println("[ChunkManager] Unloaded chunk to disk: " + coord);
                 } catch (IOException e) {
                     System.err.println("[ChunkManager] Failed to save chunk " + coord);
                     e.printStackTrace();

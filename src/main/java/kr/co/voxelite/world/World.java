@@ -217,10 +217,6 @@ public class World {
             }
         }
         
-        if (culledCount > 0) {
-            System.out.println("[World] Frustum Culling: " + culledCount + " chunks culled");
-        }
-        
         return visibleInstances;
     }
     
@@ -278,11 +274,6 @@ public class World {
             // 통합 메시에 추가
             blockDataList.add(new BlockManager.BlockData(pos, block.blockType));
             visibleFacesMap.put(pos, visibleFaces);
-        }
-        
-        if (skippedBlocks > 0) {
-            System.out.println("[World] Chunk " + chunk.getCoord() + 
-                ": skipped " + skippedBlocks + " fully occluded blocks");
         }
         
         // 청크 전체를 1개 통합 메시로 생성 (1 Draw Call!)
