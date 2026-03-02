@@ -2,6 +2,7 @@ package kr.co.voxelite.physics;
 
 import com.badlogic.gdx.math.Vector3;
 import kr.co.voxelite.entity.Player;
+import kr.co.voxelite.util.PerformanceLogger;
 import kr.co.voxelite.world.ChunkCoord;
 import kr.co.voxelite.world.World;
 
@@ -69,9 +70,11 @@ public class PhysicsSystem {
         ChunkCoord currentChunk = world.getChunkCoordAt(pos.x, pos.z);
         
         if (lastPhysicsChunk == null || !lastPhysicsChunk.equals(currentChunk) || cacheInvalidated) {
+            long t0 = PerformanceLogger.now();
             nearbyBlocks = world.getNearbyBlockPositions(pos.x, pos.z, PHYSICS_CHUNK_RADIUS);
             lastPhysicsChunk = currentChunk;
             cacheInvalidated = false;
+            PerformanceLogger.log("Physics", "getNearbyBlockPositions count=" + nearbyBlocks.size(), PerformanceLogger.now() - t0);
         }
         
         applyGravity(player, dt);

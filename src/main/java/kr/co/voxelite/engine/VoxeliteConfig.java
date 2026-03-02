@@ -3,6 +3,7 @@ package kr.co.voxelite.engine;
 import com.badlogic.gdx.math.Vector3;
 import kr.co.voxelite.world.IChunkGenerator;
 import kr.co.voxelite.world.IChunkLoadPolicy;
+import kr.co.voxelite.world.BlockManager;
 
 /**
  * Configuration for VoxeliteEngine
@@ -22,9 +23,12 @@ public class VoxeliteConfig {
     public int initialChunkRadius = 16; // Initial generation radius
     public int chunkPreloadRadius = 1; // Initial memory load radius
     public String worldSavePath = "saves/world1";
+    /** 프레임당 dirty 청크 메시 빌드 개수 제한 (스파이크 방지) */
+    public int chunkMeshBuildPerFrame = 2;
     
     // Texture settings
     public String textureAtlasPath = null;
+    public BlockManager.IBlockTextureProvider textureProvider = null;
     
     // Player settings
     public Vector3 playerStartPosition = new Vector3(0f, -0.5f, 0f);
@@ -104,6 +108,11 @@ public class VoxeliteConfig {
             return this;
         }
         
+        public Builder textureProvider(BlockManager.IBlockTextureProvider provider) {
+            config.textureProvider = provider;
+            return this;
+        }
+        
         public Builder worldSeed(long seed) {
             config.worldSeed = seed;
             return this;
@@ -131,6 +140,11 @@ public class VoxeliteConfig {
         
         public Builder worldSavePath(String path) {
             config.worldSavePath = path;
+            return this;
+        }
+        
+        public Builder chunkMeshBuildPerFrame(int max) {
+            config.chunkMeshBuildPerFrame = max;
             return this;
         }
         

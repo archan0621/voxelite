@@ -1,6 +1,7 @@
 package kr.co.voxelite.engine;
 
 import com.badlogic.gdx.Gdx;
+import kr.co.voxelite.util.PerformanceLogger;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.math.collision.Ray;
@@ -102,7 +103,7 @@ public class VoxeliteEngine {
         
         // Create world with texture atlas
         if (config.textureAtlasPath != null) {
-            blockManager = new BlockManager(config.textureAtlasPath);
+            blockManager = new BlockManager(config.textureAtlasPath, config.textureProvider);
         } else {
             blockManager = new BlockManager();
         }
@@ -175,29 +176,38 @@ public class VoxeliteEngine {
         chunkUpdateAccumulator += delta;
         if (chunkUpdateAccumulator >= CHUNK_UPDATE_INTERVAL) {
             if (world.getChunkManager() != null) {
+                long t0 = PerformanceLogger.now();
                 Vector3 playerPos = player.getPosition();
                 world.updateChunks(playerPos.x, playerPos.z);
+                PerformanceLogger.log("Engine", "updateChunks", PerformanceLogger.now() - t0);
             }
             chunkUpdateAccumulator -= CHUNK_UPDATE_INTERVAL;
         }
         
         // Process pending chunks every frame (fast responsiveness)
         if (world.getChunkManager() != null) {
+            long t0 = PerformanceLogger.now();
             world.processPendingChunks();
+            PerformanceLogger.log("Engine", "processPendingChunks", PerformanceLogger.now() - t0);
+            world.processDirtyChunkMeshes(config.chunkMeshBuildPerFrame);
         }
         
         // Update input
         input.update(delta);
         
         // Update camera and player
+        long t0 = PerformanceLogger.now();
         cameraController.update(delta);
+        PerformanceLogger.log("Engine", "cameraController.update", PerformanceLogger.now() - t0);
         
         // Perform raycasting for block selection
+        long t1 = PerformanceLogger.now();
         float screenCenterX = Gdx.graphics != null ? Gdx.graphics.getWidth() / 2f : screenWidth / 2f;
         float screenCenterY = Gdx.graphics != null ? Gdx.graphics.getHeight() / 2f : screenHeight / 2f;
         Ray ray = camera.getCamera().getPickRay(screenCenterX, screenCenterY);
         raycastHit = RayCaster.raycastWithFace(ray, world);
         selectedBlock = raycastHit != null ? raycastHit.getBlockPosition() : null;
+        PerformanceLogger.log("Engine", "raycast", PerformanceLogger.now() - t1);
     }
     
     /**
@@ -396,6 +406,11 @@ public class VoxeliteEngine {
         
         public Builder textureAtlasPath(String path) {
             configBuilder.textureAtlasPath(path);
+            return this;
+        }
+        
+        public Builder textureProvider(kr.co.voxelite.world.BlockManager.IBlockTextureProvider provider) {
+            configBuilder.textureProvider(provider);
             return this;
         }
         

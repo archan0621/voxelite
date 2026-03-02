@@ -1,6 +1,7 @@
 package kr.co.voxelite.world;
 
 import com.badlogic.gdx.math.Vector3;
+import kr.co.voxelite.util.PerformanceLogger;
 
 import java.io.File;
 import java.io.IOException;
@@ -23,7 +24,10 @@ public class ChunkManager {
     
     private final ExecutorService executorService;
     private final Queue<Chunk> pendingChunks;
-    private volatile boolean chunksChanged = false;
+    
+    // Dirty queue: chunks that need mesh rebuild (rate-limited per frame)
+    private final Queue<ChunkCoord> dirtyChunks = new ConcurrentLinkedQueue<>();
+    private final Set<ChunkCoord> dirtySet = ConcurrentHashMap.newKeySet();
     
     // Track chunk boundary
     private ChunkCoord lastPlayerChunk = null;
@@ -76,6 +80,7 @@ public class ChunkManager {
             return;
         }
         
+        long t0 = PerformanceLogger.now();
         // Chunk boundary crossed!
         lastPlayerChunk = playerChunk;
         requiredChunksCache.clear(); // Reuse
@@ -110,10 +115,18 @@ public class ChunkManager {
         
         // Check memory limit
         if (loadedChunks.size() > loadPolicy.getMaxLoadedChunks()) {
+            int before = loadedChunks.size();
             unloadOldChunks(requiredChunksCache);
+            int after = loadedChunks.size();
+            if (PerformanceLogger.ENABLED && before != after) {
+                System.out.printf("[PERF][ChunkManager] unloadOldChunks: %d -> %d%n", before, after);
+            }
         }
         
         processPendingChunks();
+        if (PerformanceLogger.ENABLED) {
+            PerformanceLogger.log("ChunkManager", "updateLoadedChunks loaded=" + loadedChunks.size() + " loading=" + loadingChunks.size(), PerformanceLogger.now() - t0);
+        }
     }
     
     /**
@@ -166,7 +179,6 @@ public class ChunkManager {
             
             loadedChunks.remove(coord);
             chunkAccessTime.remove(coord);
-            chunksChanged = true;
             removed++;
         }
     }
@@ -235,6 +247,7 @@ public class ChunkManager {
      * ✅ Modified: Only remove from loadingChunks (object already in loadedChunks)
      */
     private void processPendingChunks() {
+        long t0 = PerformanceLogger.now();
         Chunk chunk;
         int processed = 0;
         List<ChunkCoord> generatedChunks = new ArrayList<>();
@@ -247,7 +260,7 @@ public class ChunkManager {
             
             // ✅ Update access time (object already in loadedChunks)
             chunkAccessTime.put(coord, System.currentTimeMillis());
-            chunksChanged = true;
+            addDirtyChunk(coord);
             generatedChunks.add(coord);
             processed++;
         }
@@ -255,6 +268,10 @@ public class ChunkManager {
         // ✅ Invalidate adjacent chunk meshes
         for (ChunkCoord coord : generatedChunks) {
             invalidateAdjacentChunkMeshes(coord);
+        }
+        
+        if (PerformanceLogger.ENABLED && processed > 0) {
+            System.out.printf("[PERF][ChunkManager] processPendingChunks: %d chunks, %d ms%n", processed, PerformanceLogger.now() - t0);
         }
     }
     
@@ -273,11 +290,30 @@ public class ChunkManager {
         for (ChunkCoord adj : adjacents) {
             Chunk chunk = loadedChunks.get(adj);
             if (chunk != null && chunk.isGenerated()) {
-                // Set mesh to null to trigger regeneration
                 chunk.setMesh(null);
-                chunksChanged = true;
+                addDirtyChunk(adj);
             }
         }
+    }
+    
+    /**
+     * Add chunk to dirty queue for mesh rebuild (deduplicated)
+     */
+    public void addDirtyChunk(ChunkCoord coord) {
+        if (dirtySet.add(coord)) {
+            dirtyChunks.offer(coord);
+        }
+    }
+    
+    /**
+     * Poll next dirty chunk for rebuild (null if empty)
+     */
+    public ChunkCoord pollDirtyChunk() {
+        ChunkCoord coord = dirtyChunks.poll();
+        if (coord != null) {
+            dirtySet.remove(coord);
+        }
+        return coord;
     }
     
     /**
@@ -330,6 +366,9 @@ public class ChunkManager {
             }
         }
         
+        for (ChunkCoord coord : loadedChunks.keySet()) {
+            addDirtyChunk(coord);
+        }
         System.out.println("[ChunkManager] Generated: " + generated + ", Loaded: " + loaded);
     }
     
@@ -493,14 +532,6 @@ public class ChunkManager {
         return nearbyChunks;
     }
     
-    /**
-     * Check if chunks changed and reset flag
-     */
-    public boolean consumeChunksChanged() {
-        boolean changed = chunksChanged;
-        chunksChanged = false;
-        return changed;
-    }
     
     /**
      * Shutdown executor threads

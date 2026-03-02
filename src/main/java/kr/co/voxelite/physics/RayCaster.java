@@ -4,92 +4,88 @@ import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.math.collision.Ray;
 import kr.co.voxelite.world.World;
 
-import java.util.List;
-
 /**
- * Raycasting for block selection with face detection.
+ * DDA (Digital Differential Analyzer) raycasting for block selection.
+ * Steps one block at a time along the ray - max ~10 checks instead of millions.
  */
 public class RayCaster {
     private static final float MAX_DISTANCE = 10f;
-    private static final float STEP = 0.05f;
 
     /**
      * Casts a ray to find the nearest block (backward compatibility).
-     * @param ray ray from camera
-     * @param world world containing blocks
-     * @return selected block position, or null if none found
      */
     public static Vector3 raycast(Ray ray, World world) {
         RaycastHit hit = raycastWithFace(ray, world);
         return hit != null ? hit.getBlockPosition() : null;
     }
-    
+
     /**
-     * Casts a ray to find the nearest block with face information.
-     * @param ray ray from camera
-     * @param world world containing blocks
-     * @return RaycastHit with block position and face normal, or null if none found
+     * DDA raycast: step one block at a time, check only current voxel.
+     * Max checks ≈ 5 ~ 10 blocks (not millions).
      */
     public static RaycastHit raycastWithFace(Ray ray, World world) {
-        Vector3 current = new Vector3(ray.origin);
-        Vector3 previous = new Vector3(ray.origin);
-        Vector3 step = new Vector3(ray.direction).nor().scl(STEP);
-        
-        List<Vector3> blockPositions = world.getBlockPositions();
-        
-        for (float distance = 0; distance < MAX_DISTANCE; distance += STEP) {
-            previous.set(current);
-            current.add(step);
-            
-            for (Vector3 blockPos : blockPositions) {
-                if (isPointInBlock(current, blockPos)) {
-                    // Determine which face was hit
-                    Vector3 normal = calculateHitNormal(previous, blockPos);
-                    return new RaycastHit(blockPos, normal);
-                }
+        Vector3 origin = ray.origin;
+        Vector3 dir = ray.direction.cpy().nor();
+
+        int vx = (int) Math.floor(origin.x);
+        int vy = (int) Math.floor(origin.y);
+        int vz = (int) Math.floor(origin.z);
+
+        int stepX = dir.x > 0 ? 1 : (dir.x < 0 ? -1 : 0);
+        int stepY = dir.y > 0 ? 1 : (dir.y < 0 ? -1 : 0);
+        int stepZ = dir.z > 0 ? 1 : (dir.z < 0 ? -1 : 0);
+
+        float tDeltaX = (stepX != 0 && dir.x != 0) ? Math.abs(1f / dir.x) : Float.POSITIVE_INFINITY;
+        float tDeltaY = (stepY != 0 && dir.y != 0) ? Math.abs(1f / dir.y) : Float.POSITIVE_INFINITY;
+        float tDeltaZ = (stepZ != 0 && dir.z != 0) ? Math.abs(1f / dir.z) : Float.POSITIVE_INFINITY;
+
+        float tMaxX = (stepX != 0) ? (stepX > 0 ? (vx + 1 - origin.x) / dir.x : (vx - origin.x) / dir.x) : Float.POSITIVE_INFINITY;
+        float tMaxY = (stepY != 0) ? (stepY > 0 ? (vy + 1 - origin.y) / dir.y : (vy - origin.y) / dir.y) : Float.POSITIVE_INFINITY;
+        float tMaxZ = (stepZ != 0) ? (stepZ > 0 ? (vz + 1 - origin.z) / dir.z : (vz - origin.z) / dir.z) : Float.POSITIVE_INFINITY;
+
+        int prevVx = vx, prevVy = vy, prevVz = vz;
+        float t = 0;
+
+        while (t < MAX_DISTANCE) {
+            if (world.hasBlockAt(vx + 0.5f, vy + 0.5f, vz + 0.5f)) {
+                Vector3 normal = calculateHitNormal(prevVx, prevVy, prevVz, vx, vy, vz);
+                return new RaycastHit(new Vector3(vx, vy, vz), normal);
+            }
+
+            prevVx = vx;
+            prevVy = vy;
+            prevVz = vz;
+
+            if (tMaxX <= tMaxY && tMaxX <= tMaxZ) {
+                t = tMaxX;
+                tMaxX += tDeltaX;
+                vx += stepX;
+            } else if (tMaxY <= tMaxZ) {
+                t = tMaxY;
+                tMaxY += tDeltaY;
+                vy += stepY;
+            } else {
+                t = tMaxZ;
+                tMaxZ += tDeltaZ;
+                vz += stepZ;
             }
         }
-        
+
         return null;
     }
-    
+
     /**
-     * Checks if point is inside a 1x1x1 block.
+     * Hit normal = direction from hit voxel toward ray origin (face normal pointing outward).
      */
-    private static boolean isPointInBlock(Vector3 point, Vector3 blockPos) {
-        float halfSize = 0.5f;
-        
-        return point.x >= blockPos.x - halfSize && point.x <= blockPos.x + halfSize &&
-               point.y >= blockPos.y - halfSize && point.y <= blockPos.y + halfSize &&
-               point.z >= blockPos.z - halfSize && point.z <= blockPos.z + halfSize;
-    }
-    
-    /**
-     * Calculates which face was hit based on the entry point.
-     * The entry point is just outside the block, so we calculate the direction
-     * from block center to entry point and determine the closest face.
-     */
-    private static Vector3 calculateHitNormal(Vector3 entryPoint, Vector3 blockPos) {
-        // Vector from block center to entry point
-        float dx = entryPoint.x - blockPos.x;
-        float dy = entryPoint.y - blockPos.y;
-        float dz = entryPoint.z - blockPos.z;
-        
-        // Find the axis with maximum absolute value
-        float absDx = Math.abs(dx);
-        float absDy = Math.abs(dy);
-        float absDz = Math.abs(dz);
-        
-        if (absDx > absDy && absDx > absDz) {
-            // Hit X face
-            return new Vector3(dx > 0 ? 1 : -1, 0, 0);
-        } else if (absDy > absDz) {
-            // Hit Y face
-            return new Vector3(0, dy > 0 ? 1 : -1, 0);
-        } else {
-            // Hit Z face
-            return new Vector3(0, 0, dz > 0 ? 1 : -1);
-        }
+    private static Vector3 calculateHitNormal(int prevVx, int prevVy, int prevVz, int vx, int vy, int vz) {
+        int dx = prevVx - vx;
+        int dy = prevVy - vy;
+        int dz = prevVz - vz;
+
+        if (dx != 0) return new Vector3(dx > 0 ? 1 : -1, 0, 0);
+        if (dy != 0) return new Vector3(0, dy > 0 ? 1 : -1, 0);
+        if (dz != 0) return new Vector3(0, 0, dz > 0 ? 1 : -1);
+
+        return new Vector3(0, 1, 0);
     }
 }
-

@@ -1,6 +1,7 @@
 package kr.co.voxelite.world;
 
 import com.badlogic.gdx.graphics.g3d.Model;
+import kr.co.voxelite.util.PerformanceLogger;
 import com.badlogic.gdx.graphics.g3d.ModelInstance;
 import com.badlogic.gdx.math.Vector3;
 
@@ -15,13 +16,9 @@ import java.util.Map;
 public class World {
     private BlockManager blockManager;
     private ChunkManager chunkManager;
-    private List<ModelInstance> cachedInstances;
-    private boolean instancesDirty = true;
-    private int lastBlockCount = 0; // Track block count
 
     public World(BlockManager blockManager) {
         this.blockManager = blockManager;
-        this.cachedInstances = new ArrayList<>();
     }
     
     /**
@@ -43,7 +40,6 @@ public class World {
         }
         
         chunkManager.generateInitialChunks(spawnX, spawnZ, totalRadius, loadRadius);
-        instancesDirty = true;  // Need mesh build on initial generation
         
         return chunkManager.getChunkCenterHeight(spawnX, spawnZ);
     }
@@ -54,11 +50,6 @@ public class World {
     public void updateChunks(float playerX, float playerZ) {
         if (chunkManager != null) {
             chunkManager.updateLoadedChunks(playerX, playerZ);
-            
-            // Rebuild only when chunks are added/removed
-            if (chunkManager.consumeChunksChanged()) {
-                instancesDirty = true;
-            }
         }
     }
     
@@ -70,6 +61,25 @@ public class World {
             chunkManager.processPendingChunksPublic();
         }
     }
+    
+    /**
+     * Process dirty chunk meshes (rate-limited, max per frame)
+     */
+    public void processDirtyChunkMeshes(int maxPerFrame) {
+        if (chunkManager == null) return;
+        
+        int built = 0;
+        while (built < maxPerFrame) {
+            ChunkCoord coord = chunkManager.pollDirtyChunk();
+            if (coord == null) break;
+            
+            Chunk chunk = chunkManager.getChunk(coord);
+            if (chunk != null && chunk.isGenerated() && !chunk.hasMesh()) {
+                buildChunkMesh(chunk);
+                built++;
+            }
+        }
+    }
 
     /**
      * Clear all blocks from the world
@@ -79,8 +89,6 @@ public class World {
             chunkManager.shutdown();
             chunkManager = null;
         }
-        cachedInstances.clear();
-        instancesDirty = true;
     }
 
     /**
@@ -89,8 +97,7 @@ public class World {
     public void addBlock(Vector3 position, int blockType) {
         if (chunkManager != null) {
             chunkManager.addBlock(position, blockType);
-            invalidateChunkMesh(position);
-            instancesDirty = true;
+            invalidateAndRebuildChunkMeshImmediate(position);
         }
     }
     
@@ -108,8 +115,7 @@ public class World {
         if (chunkManager != null) {
             boolean removed = chunkManager.removeBlock(position);
             if (removed) {
-                invalidateChunkMesh(position);
-                instancesDirty = true;
+                invalidateAndRebuildChunkMeshImmediate(position);
             }
             return removed;
         }
@@ -122,6 +128,17 @@ public class World {
     public boolean hasBlock(Vector3 position) {
         if (chunkManager != null) {
             return chunkManager.getBlockAt(position) != null;
+        }
+        return false;
+    }
+    
+    /**
+     * Check if a block exists at world coordinates (for DDA raycast).
+     * Uses floor for block position: (5.3, 64.7, 10.1) → block (5, 64, 10)
+     */
+    public boolean hasBlockAt(float worldX, float worldY, float worldZ) {
+        if (chunkManager != null) {
+            return chunkManager.hasBlockAt(worldX, worldY, worldZ);
         }
         return false;
     }
@@ -180,20 +197,23 @@ public class World {
      */
     public List<ModelInstance> getAllBlockInstances(com.badlogic.gdx.graphics.Camera camera) {
         if (chunkManager == null) {
-            return cachedInstances;
+            return new ArrayList<>();
         }
         
-        // Rebuild only when instancesDirty
-        if (instancesDirty) {
-            rebuildAllChunkMeshes();
-        }
-        
-        // Apply Frustum Culling
         if (camera != null) {
-            return getFrustumCulledInstances(camera);
+            long t0 = PerformanceLogger.now();
+            List<ModelInstance> result = getFrustumCulledInstances(camera);
+            PerformanceLogger.log("World", "getFrustumCulledInstances " + result.size() + " chunks", PerformanceLogger.now() - t0);
+            return result;
         }
         
-        return cachedInstances;
+        List<ModelInstance> result = new ArrayList<>();
+        for (Chunk chunk : chunkManager.getLoadedChunks()) {
+            if (chunk.hasMesh() && chunk.getMesh().hasInstance()) {
+                result.add(chunk.getMesh().getInstance());
+            }
+        }
+        return result;
     }
     
     /**
@@ -217,27 +237,6 @@ public class World {
         return visibleInstances;
     }
     
-    /**
-     * Rebuild all chunk meshes and collect instances (chunk-based unified mesh)
-     */
-    private void rebuildAllChunkMeshes() {
-        // 1. Build mesh for generated chunks without mesh
-        for (Chunk chunk : chunkManager.getLoadedChunks()) {
-            if (chunk.isGenerated() && !chunk.hasMesh()) {
-                buildChunkMesh(chunk);
-            }
-        }
-        
-        // 2. Collect unified meshes from all chunks (1 chunk = 1 ModelInstance)
-        cachedInstances.clear();
-        for (Chunk chunk : chunkManager.getLoadedChunks()) {
-            if (chunk.hasMesh() && chunk.getMesh().hasInstance()) {
-                cachedInstances.add(chunk.getMesh().getInstance());
-            }
-        }
-        
-        instancesDirty = false;
-    }
     
     /**
      * Build mesh for a single chunk (unified mesh: 1 Chunk = 1 Draw Call)
@@ -245,6 +244,7 @@ public class World {
      * - Fully Occluded Block Removal
      */
     private void buildChunkMesh(Chunk chunk) {
+        long t0 = PerformanceLogger.now();
         List<BlockManager.BlockData> blockDataList = new ArrayList<>();
         Map<Vector3, boolean[]> visibleFacesMap = new HashMap<>();
         int skippedBlocks = 0;
@@ -280,62 +280,59 @@ public class World {
         ChunkMesh mesh = new ChunkMesh();
         mesh.setModel(chunkModel);
         chunk.setMesh(mesh);
-    }
-    
-    /**
-     * Invalidate chunk mesh (when block changes)
-     * + Also invalidate adjacent chunks (due to Face Culling)
-     */
-    private void invalidateChunkMesh(Vector3 position) {
-        if (chunkManager != null) {
-            ChunkCoord coord = ChunkCoord.fromWorldPos(position.x, position.z, Chunk.CHUNK_SIZE);
-            
-            // Invalidate target chunk
-            invalidateChunkAt(coord);
-            
-            // Check if block position is at chunk boundary and invalidate adjacent chunks
-            // ✅ Negative coordinate safe: Math.floor → Math.floorMod
-            int blockX = (int) Math.floor(position.x);
-            int blockZ = (int) Math.floor(position.z);
-            int localX = Math.floorMod(blockX, Chunk.CHUNK_SIZE);
-            int localZ = Math.floorMod(blockZ, Chunk.CHUNK_SIZE);
-            
-            // Check X boundary
-            if (localX == 0) {
-                invalidateChunkAt(new ChunkCoord(coord.x - 1, coord.z)); // Left chunk
-            } else if (localX == Chunk.CHUNK_SIZE - 1) {
-                invalidateChunkAt(new ChunkCoord(coord.x + 1, coord.z)); // Right chunk
-            }
-            
-            // Check Z boundary
-            if (localZ == 0) {
-                invalidateChunkAt(new ChunkCoord(coord.x, coord.z - 1)); // Back chunk
-            } else if (localZ == Chunk.CHUNK_SIZE - 1) {
-                invalidateChunkAt(new ChunkCoord(coord.x, coord.z + 1)); // Front chunk
-            }
-            
-            // Check diagonal corners
-            if (localX == 0 && localZ == 0) {
-                invalidateChunkAt(new ChunkCoord(coord.x - 1, coord.z - 1));
-            } else if (localX == 0 && localZ == Chunk.CHUNK_SIZE - 1) {
-                invalidateChunkAt(new ChunkCoord(coord.x - 1, coord.z + 1));
-            } else if (localX == Chunk.CHUNK_SIZE - 1 && localZ == 0) {
-                invalidateChunkAt(new ChunkCoord(coord.x + 1, coord.z - 1));
-            } else if (localX == Chunk.CHUNK_SIZE - 1 && localZ == Chunk.CHUNK_SIZE - 1) {
-                invalidateChunkAt(new ChunkCoord(coord.x + 1, coord.z + 1));
-            }
+        
+        if (PerformanceLogger.ENABLED) {
+            long ms = PerformanceLogger.now() - t0;
+            System.out.printf("[PERF][World] buildChunkMesh chunk(%d,%d): %d ms, blocks=%d, skipped=%d%n",
+                chunk.getCoord().x, chunk.getCoord().z, ms, blockDataList.size(), skippedBlocks);
         }
     }
     
     /**
-     * Helper: Invalidate mesh of specific chunk
+     * 블록 변경 시 즉시 무효화 + 재빌드 (깜빡임 방지)
+     * 사용자 액션(add/remove block)에서만 호출
+     */
+    private void invalidateAndRebuildChunkMeshImmediate(Vector3 position) {
+        if (chunkManager == null) return;
+        
+        ChunkCoord coord = ChunkCoord.fromWorldPos(position.x, position.z, Chunk.CHUNK_SIZE);
+        invalidateAndRebuildChunkAtImmediate(coord);
+        
+        int blockX = (int) Math.floor(position.x);
+        int blockZ = (int) Math.floor(position.z);
+        int localX = Math.floorMod(blockX, Chunk.CHUNK_SIZE);
+        int localZ = Math.floorMod(blockZ, Chunk.CHUNK_SIZE);
+        
+        if (localX == 0) invalidateAndRebuildChunkAtImmediate(new ChunkCoord(coord.x - 1, coord.z));
+        else if (localX == Chunk.CHUNK_SIZE - 1) invalidateAndRebuildChunkAtImmediate(new ChunkCoord(coord.x + 1, coord.z));
+        if (localZ == 0) invalidateAndRebuildChunkAtImmediate(new ChunkCoord(coord.x, coord.z - 1));
+        else if (localZ == Chunk.CHUNK_SIZE - 1) invalidateAndRebuildChunkAtImmediate(new ChunkCoord(coord.x, coord.z + 1));
+        if (localX == 0 && localZ == 0) invalidateAndRebuildChunkAtImmediate(new ChunkCoord(coord.x - 1, coord.z - 1));
+        else if (localX == 0 && localZ == Chunk.CHUNK_SIZE - 1) invalidateAndRebuildChunkAtImmediate(new ChunkCoord(coord.x - 1, coord.z + 1));
+        else if (localX == Chunk.CHUNK_SIZE - 1 && localZ == 0) invalidateAndRebuildChunkAtImmediate(new ChunkCoord(coord.x + 1, coord.z - 1));
+        else if (localX == Chunk.CHUNK_SIZE - 1 && localZ == Chunk.CHUNK_SIZE - 1) invalidateAndRebuildChunkAtImmediate(new ChunkCoord(coord.x + 1, coord.z + 1));
+    }
+    
+    /** 즉시 무효화 + 재빌드 (dirty 큐 사용 안 함) */
+    private void invalidateAndRebuildChunkAtImmediate(ChunkCoord coord) {
+        if (chunkManager == null) return;
+        Chunk chunk = chunkManager.getChunk(coord);
+        if (chunk == null || !chunk.isGenerated()) return;
+        
+        if (chunk.hasMesh()) chunk.setMesh(null);
+        buildChunkMesh(chunk);
+    }
+    
+    /**
+     * Invalidate chunk mesh (청크 로드 시 인접 청크용 - dirty 큐에 추가)
      */
     private void invalidateChunkAt(ChunkCoord coord) {
         if (chunkManager != null) {
             Chunk chunk = chunkManager.getChunk(coord);
             if (chunk != null && chunk.hasMesh()) {
-                chunk.getMesh().clear();
+                chunk.setMesh(null);
             }
+            chunkManager.addDirtyChunk(coord);
         }
     }
     

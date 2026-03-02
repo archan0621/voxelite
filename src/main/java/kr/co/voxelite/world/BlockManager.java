@@ -18,18 +18,39 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import kr.co.voxelite.util.PerformanceLogger;
+
 /**
  * Block creation and model management with texture support
  */
 public class BlockManager {
+    /**
+     * Interface for providing custom textures for each face of a block
+     */
+    public interface IBlockTextureProvider {
+        /**
+         * Get texture index for a specific face of a block
+         * @param blockType Block type ID
+         * @param faceIndex Face index (0=front/z+, 1=back/z-, 2=left/x-, 3=right/x+, 4=top/y+, 5=bottom/y-)
+         * @return Texture index in the atlas
+         */
+        int getTexture(int blockType, int faceIndex);
+    }
+    
     private Texture blockAtlas;
     private int atlasGridSize = 16; // 16x16 grid
     private float tileSize; // UV size per tile
     
     private Map<Integer, Model[]> blockModelsCache; // Cache models per block type
     private float blockSize = 0.5f;
+    
+    private IBlockTextureProvider textureProvider; // Custom texture provider
 
     public BlockManager(String atlasPath) {
+        this(atlasPath, null);
+    }
+    
+    public BlockManager(String atlasPath, IBlockTextureProvider textureProvider) {
         if (atlasPath != null) {
             this.blockAtlas = new Texture(Gdx.files.internal(atlasPath));
             // ✅ Atlas-Safe approach: UV always uses only 1 tile size, so Repeat is unnecessary
@@ -37,10 +58,29 @@ public class BlockManager {
         }
         this.tileSize = 1.0f / atlasGridSize;
         this.blockModelsCache = new HashMap<>();
+        this.textureProvider = textureProvider;
     }
     
     public BlockManager() {
-        this(null);
+        this(null, null);
+    }
+    
+    /**
+     * Set custom texture provider
+     */
+    public void setTextureProvider(IBlockTextureProvider provider) {
+        this.textureProvider = provider;
+        // Clear cache to regenerate models with new textures
+        if (blockModelsCache != null) {
+            for (Model[] models : blockModelsCache.values()) {
+                if (models != null) {
+                    for (Model model : models) {
+                        if (model != null) model.dispose();
+                    }
+                }
+            }
+            blockModelsCache.clear();
+        }
     }
 
     /**
@@ -58,6 +98,7 @@ public class BlockManager {
     
     /**
      * Create face models with texture for a specific block type
+     * Supports different textures for each face via IBlockTextureProvider
      */
     private Model[] createBlockFaceModels(int blockType) {
         if (blockAtlas == null) {
@@ -67,14 +108,6 @@ public class BlockManager {
         ModelBuilder builder = new ModelBuilder();
         Model[] models = new Model[6];
         
-        // Calculate UV coordinates for this block type
-        int tileX = blockType % atlasGridSize;
-        int tileY = blockType / atlasGridSize;
-        float u = tileX * tileSize;
-        float v = tileY * tileSize;
-        float u2 = u + tileSize;
-        float v2 = v + tileSize;
-        
         Material material = new Material(TextureAttribute.createDiffuse(blockAtlas));
         long attributes = VertexAttributes.Usage.Position | 
                          VertexAttributes.Usage.Normal | 
@@ -83,79 +116,109 @@ public class BlockManager {
         float s = blockSize;
         Vector3 normal = new Vector3();
         
-        // Front face (z+)
-        builder.begin();
-        MeshPartBuilder part = builder.part("front", GL20.GL_TRIANGLES, attributes, material);
-        normal.set(0, 0, 1);
-        part.setUVRange(u, v, u2, v2);
-        part.rect(
-            new Vector3(-s, -s, s), new Vector3(s, -s, s),
-            new Vector3(s, s, s), new Vector3(-s, s, s),
-            normal
-        );
-        models[0] = builder.end();
-        
-        // Back face (z-)
-        builder.begin();
-        part = builder.part("back", GL20.GL_TRIANGLES, attributes, material);
-        normal.set(0, 0, -1);
-        part.setUVRange(u, v, u2, v2);
-        part.rect(
-            new Vector3(s, -s, -s), new Vector3(-s, -s, -s),
-            new Vector3(-s, s, -s), new Vector3(s, s, -s),
-            normal
-        );
-        models[1] = builder.end();
-        
-        // Left face (x-)
-        builder.begin();
-        part = builder.part("left", GL20.GL_TRIANGLES, attributes, material);
-        normal.set(-1, 0, 0);
-        part.setUVRange(u, v, u2, v2);
-        part.rect(
-            new Vector3(-s, -s, -s), new Vector3(-s, -s, s),
-            new Vector3(-s, s, s), new Vector3(-s, s, -s),
-            normal
-        );
-        models[2] = builder.end();
-        
-        // Right face (x+)
-        builder.begin();
-        part = builder.part("right", GL20.GL_TRIANGLES, attributes, material);
-        normal.set(1, 0, 0);
-        part.setUVRange(u, v, u2, v2);
-        part.rect(
-            new Vector3(s, -s, s), new Vector3(s, -s, -s),
-            new Vector3(s, s, -s), new Vector3(s, s, s),
-            normal
-        );
-        models[3] = builder.end();
-        
-        // Top face (y+)
-        builder.begin();
-        part = builder.part("top", GL20.GL_TRIANGLES, attributes, material);
-        normal.set(0, 1, 0);
-        part.setUVRange(u, v, u2, v2);
-        part.rect(
-            new Vector3(-s, s, s), new Vector3(s, s, s),
-            new Vector3(s, s, -s), new Vector3(-s, s, -s),
-            normal
-        );
-        models[4] = builder.end();
-        
-        // Bottom face (y-)
-        builder.begin();
-        part = builder.part("bottom", GL20.GL_TRIANGLES, attributes, material);
-        normal.set(0, -1, 0);
-        part.setUVRange(u, v, u2, v2);
-        part.rect(
-            new Vector3(-s, -s, -s), new Vector3(s, -s, -s),
-            new Vector3(s, -s, s), new Vector3(-s, -s, s),
-            normal
-        );
-        models[5] = builder.end();
+        // Create each face with its specific texture
+        for (int faceIndex = 0; faceIndex < 6; faceIndex++) {
+            int textureIndex = getTextureForFace(blockType, faceIndex);
+            
+            // Calculate UV coordinates for this texture
+            int tileX = textureIndex % atlasGridSize;
+            int tileY = textureIndex / atlasGridSize;
+            float u = tileX * tileSize;
+            float v = tileY * tileSize;
+            float u2 = u + tileSize;
+            float v2 = v + tileSize;
+            
+            builder.begin();
+            MeshPartBuilder part = builder.part(getFaceName(faceIndex), GL20.GL_TRIANGLES, attributes, material);
+            part.setUVRange(u, v, u2, v2);
+            
+            switch (faceIndex) {
+                case 0: // Front face (z+)
+                    normal.set(0, 0, 1);
+                    part.rect(
+                        new Vector3(-s, -s, s), new Vector3(s, -s, s),
+                        new Vector3(s, s, s), new Vector3(-s, s, s),
+                        normal
+                    );
+                    break;
+                    
+                case 1: // Back face (z-)
+                    normal.set(0, 0, -1);
+                    part.rect(
+                        new Vector3(s, -s, -s), new Vector3(-s, -s, -s),
+                        new Vector3(-s, s, -s), new Vector3(s, s, -s),
+                        normal
+                    );
+                    break;
+                    
+                case 2: // Left face (x-)
+                    normal.set(-1, 0, 0);
+                    part.rect(
+                        new Vector3(-s, -s, -s), new Vector3(-s, -s, s),
+                        new Vector3(-s, s, s), new Vector3(-s, s, -s),
+                        normal
+                    );
+                    break;
+                    
+                case 3: // Right face (x+)
+                    normal.set(1, 0, 0);
+                    part.rect(
+                        new Vector3(s, -s, s), new Vector3(s, -s, -s),
+                        new Vector3(s, s, -s), new Vector3(s, s, s),
+                        normal
+                    );
+                    break;
+                    
+                case 4: // Top face (y+)
+                    normal.set(0, 1, 0);
+                    part.rect(
+                        new Vector3(-s, s, s), new Vector3(s, s, s),
+                        new Vector3(s, s, -s), new Vector3(-s, s, -s),
+                        normal
+                    );
+                    break;
+                    
+                case 5: // Bottom face (y-)
+                    normal.set(0, -1, 0);
+                    part.rect(
+                        new Vector3(-s, -s, -s), new Vector3(s, -s, -s),
+                        new Vector3(s, -s, s), new Vector3(-s, -s, s),
+                        normal
+                    );
+                    break;
+            }
+            
+            models[faceIndex] = builder.end();
+        }
         
         return models;
+    }
+    
+    /**
+     * Get texture index for a specific face of a block
+     * Can be overridden by providing IBlockTextureProvider
+     */
+    protected int getTextureForFace(int blockType, int faceIndex) {
+        if (textureProvider != null) {
+            return textureProvider.getTexture(blockType, faceIndex);
+        }
+        // Default: all faces use blockType as texture index
+        return blockType;
+    }
+    
+    /**
+     * Get face name for debugging
+     */
+    private String getFaceName(int faceIndex) {
+        switch (faceIndex) {
+            case 0: return "front";
+            case 1: return "back";
+            case 2: return "left";
+            case 3: return "right";
+            case 4: return "top";
+            case 5: return "bottom";
+            default: return "unknown";
+        }
     }
     
     /**
@@ -319,9 +382,11 @@ public class BlockManager {
             return null;
         }
         
+        long t0 = PerformanceLogger.now();
         // Apply Greedy Meshing algorithm
         List<GreedyMeshBuilder.MergedQuad> mergedQuads = 
             GreedyMeshBuilder.buildGreedyMesh(blocks, visibleFacesMap);
+        long t1 = PerformanceLogger.now();
         
         if (mergedQuads.isEmpty()) {
             return null;
@@ -357,9 +422,12 @@ public class BlockManager {
             int blockType = quad.blockType;
             int direction = quad.direction;
             
-            // UV calculation (determine atlas tile position by block type)
-            int tileX = blockType % atlasGridSize;
-            int tileY = blockType / atlasGridSize;
+            // Get texture for this specific face
+            int textureIndex = getTextureForFace(blockType, direction);
+            
+            // UV calculation (determine atlas tile position by texture index)
+            int tileX = textureIndex % atlasGridSize;
+            int tileY = textureIndex / atlasGridSize;
             float u = tileX * tileSize;
             float v = tileY * tileSize;
             
@@ -367,7 +435,13 @@ public class BlockManager {
             createMergedFaceWithRepeatingUV(meshBuilder, origin, width, height, direction, s, normal, u, v, tileSize);
         }
         
-        return builder.end();
+        Model model = builder.end();
+        long t2 = PerformanceLogger.now();
+        if (PerformanceLogger.ENABLED && (t2 - t0) > 10) {
+            System.out.printf("[PERF][BlockManager] createChunkMesh: greedy=%dms mesh=%dms quads=%d blocks=%d%n",
+                t1 - t0, t2 - t1, mergedQuads.size(), blocks.size());
+        }
+        return model;
     }
     
     /**

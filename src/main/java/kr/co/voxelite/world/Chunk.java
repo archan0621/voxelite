@@ -67,6 +67,9 @@ public class Chunk {
     }
     
     public void setMesh(ChunkMesh mesh) {
+        if (this.mesh != null) {
+            this.mesh.dispose();
+        }
         this.mesh = mesh;
         if (mesh != null && mesh.hasInstance()) {
             this.state = ChunkState.MESHED;
