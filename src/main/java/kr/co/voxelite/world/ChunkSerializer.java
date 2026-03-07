@@ -9,6 +9,7 @@ import java.util.Collection;
  * Serializes and deserializes chunks to/from disk
  */
 public class ChunkSerializer {
+    private static final boolean DEBUG_CHUNK_IO = false;
     
     /**
      * Save chunk to file
@@ -36,6 +37,8 @@ public class ChunkSerializer {
                 out.writeInt(block.blockType);
             }
         }
+
+        chunk.setModified(false);
     }
     
     /**
@@ -54,11 +57,13 @@ public class ChunkSerializer {
             // Block count
             int blockCount = in.readInt();
 
-            System.out.println(
-            "[CHUNK_LOAD] coord=(" + chunkX + "," + chunkZ + ")" +
-            " blocks=" + blockCount +
-            " file=" + file.getName()
-            );
+            if (DEBUG_CHUNK_IO) {
+                System.out.println(
+                    "[CHUNK_LOAD] coord=(" + chunkX + "," + chunkZ + ")" +
+                    " blocks=" + blockCount +
+                    " file=" + file.getName()
+                );
+            }
             
             // Load each block
             // ✅ Modified: Load as BlockPos
@@ -73,6 +78,7 @@ public class ChunkSerializer {
             
             // Set loaded chunks as generated = true
             chunk.markAsGenerated();
+            chunk.setModified(false);
             
             return chunk;
         }
@@ -99,11 +105,13 @@ public class ChunkSerializer {
             // Block count
             int blockCount = in.readInt();
             
-            System.out.println(
-                "[CHUNK_LOAD_INTO] coord=" + chunk.getCoord() +
-                " blocks=" + blockCount +
-                " file=" + file.getName()
-            );
+            if (DEBUG_CHUNK_IO) {
+                System.out.println(
+                    "[CHUNK_LOAD_INTO] coord=" + chunk.getCoord() +
+                    " blocks=" + blockCount +
+                    " file=" + file.getName()
+                );
+            }
             
             // Load each block
             for (int i = 0; i < blockCount; i++) {
@@ -117,6 +125,7 @@ public class ChunkSerializer {
             
             // Set loaded chunks as generated = true
             chunk.markAsGenerated();
+            chunk.setModified(false);
         }
     }
     

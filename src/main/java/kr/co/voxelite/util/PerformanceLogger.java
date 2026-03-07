@@ -6,7 +6,7 @@ package kr.co.voxelite.util;
  */
 public final class PerformanceLogger {
     /** Set to false to disable all performance logs */
-    public static final boolean ENABLED = true;
+    public static final boolean ENABLED = false;
     
     /** Log interval: log every N frames (1 = every frame) */
     public static final int LOG_INTERVAL = 60;

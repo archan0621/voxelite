@@ -24,7 +24,9 @@ public class RayCaster {
      * Max checks ≈ 5 ~ 10 blocks (not millions).
      */
     public static RaycastHit raycastWithFace(Ray ray, World world) {
-        Vector3 origin = ray.origin;
+        // Blocks are centered on integer coordinates, so shift into a grid where
+        // each voxel occupies [n, n+1) before running standard DDA.
+        Vector3 origin = new Vector3(ray.origin).add(0.5f, 0.5f, 0.5f);
         Vector3 dir = ray.direction.cpy().nor();
 
         int vx = (int) Math.floor(origin.x);
@@ -47,7 +49,7 @@ public class RayCaster {
         float t = 0;
 
         while (t < MAX_DISTANCE) {
-            if (world.hasBlockAt(vx + 0.5f, vy + 0.5f, vz + 0.5f)) {
+            if (world.hasBlockAt(vx, vy, vz)) {
                 Vector3 normal = calculateHitNormal(prevVx, prevVy, prevVz, vx, vy, vz);
                 return new RaycastHit(new Vector3(vx, vy, vz), normal);
             }

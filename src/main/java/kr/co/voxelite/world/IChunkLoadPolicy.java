@@ -9,6 +9,11 @@ public interface IChunkLoadPolicy {
      * Should this chunk be loaded into memory?
      */
     boolean shouldLoadToMemory(int chunkX, int chunkZ, int playerChunkX, int playerChunkZ);
+
+    /**
+     * Should this chunk remain resident in memory even when it is no longer visible?
+     */
+    boolean shouldKeepLoaded(int chunkX, int chunkZ, int playerChunkX, int playerChunkZ);
     
     /**
      * Should this chunk be pre-generated?

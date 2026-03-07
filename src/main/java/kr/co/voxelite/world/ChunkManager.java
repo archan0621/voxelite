@@ -5,58 +5,58 @@ import kr.co.voxelite.util.PerformanceLogger;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Queue;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 /**
- * Manages chunk loading/unloading (library level)
- * Policies are injected from outside
+ * Manages chunk loading/unloading.
  */
 public class ChunkManager {
+    private static final long UNLOAD_GRACE_MS = 500L;
+
     private final Map<ChunkCoord, Chunk> loadedChunks;
-    private final LinkedHashMap<ChunkCoord, Long> chunkAccessTime; // LRU tracking
+    private final LinkedHashMap<ChunkCoord, Long> chunkAccessTime;
     private final String worldPath;
     private final int defaultBlockType;
-    
-    // Policy injection
     private final IChunkGenerator chunkGenerator;
     private final IChunkLoadPolicy loadPolicy;
-    
     private final ExecutorService executorService;
     private final Queue<Chunk> pendingChunks;
-    
-    // Dirty queue: chunks that need mesh rebuild (rate-limited per frame)
     private final Queue<ChunkCoord> dirtyChunks = new ConcurrentLinkedQueue<>();
     private final Set<ChunkCoord> dirtySet = ConcurrentHashMap.newKeySet();
-    
-    // Track chunk boundary
-    private ChunkCoord lastPlayerChunk = null;
-    
-    // Reusable collections (reduce GC)
-    private final Set<ChunkCoord> requiredChunksCache = new HashSet<>();
-    private final Map<String, ChunkCoord> chunkCoordCache = new HashMap<>(); // ChunkCoord caching
-    
-    // ✅ Track loading chunks (prevent duplicates + solve placeholder issue)
     private final Set<ChunkCoord> loadingChunks = ConcurrentHashMap.newKeySet();
-    
-    public ChunkManager(String worldPath, int defaultBlockType, 
-                       IChunkGenerator chunkGenerator, IChunkLoadPolicy loadPolicy) {
+    private final Set<ChunkCoord> requiredChunksCache = new HashSet<>();
+    private final Map<ChunkCoord, Long> unloadEligibleSince = new HashMap<>();
+    private final Map<String, ChunkCoord> chunkCoordCache = new HashMap<>();
+
+    private ChunkCoord lastPlayerChunk = null;
+
+    public ChunkManager(String worldPath, int defaultBlockType, IChunkGenerator chunkGenerator, IChunkLoadPolicy loadPolicy) {
         this.worldPath = worldPath;
         this.defaultBlockType = defaultBlockType;
         this.chunkGenerator = chunkGenerator;
         this.loadPolicy = loadPolicy;
-        
-        this.loadedChunks = new ConcurrentHashMap<>();
-        this.chunkAccessTime = new LinkedHashMap<>(16, 0.75f, true);
-        this.executorService = Executors.newFixedThreadPool(2);
-        this.pendingChunks = new ConcurrentLinkedQueue<>();
-        
+        loadedChunks = new ConcurrentHashMap<>();
+        chunkAccessTime = new LinkedHashMap<>(16, 0.75f, true);
+        executorService = Executors.newFixedThreadPool(2);
+        pendingChunks = new ConcurrentLinkedQueue<>();
+
         new File(worldPath, "chunks").mkdirs();
     }
-    
-    /**
-     * Get or create cached ChunkCoord (object reuse)
-     */
+
     private ChunkCoord getOrCreateChunkCoord(int x, int z) {
         String key = x + "," + z;
         ChunkCoord coord = chunkCoordCache.get(key);
@@ -66,78 +66,98 @@ public class ChunkManager {
         }
         return coord;
     }
-    
-    /**
-     * Update loaded chunks (only when crossing chunk boundary)
-     */
+
     public void updateLoadedChunks(float playerX, float playerZ) {
-        ChunkCoord playerChunk = ChunkCoord.fromWorldPos(playerX, playerZ, Chunk.CHUNK_SIZE);
-        
-        // ✅ Check chunk boundary crossing
-        if (lastPlayerChunk != null && lastPlayerChunk.equals(playerChunk)) {
-            // Within same chunk, only execute processPendingChunks
-            processPendingChunks();
+        updateLoadedChunks(List.of(new Vector3(playerX, 0f, playerZ)));
+    }
+
+    public void updateLoadedChunks(Collection<Vector3> playerPositions) {
+        long now = System.currentTimeMillis();
+        List<ChunkCoord> playerChunks = collectPlayerChunks(playerPositions);
+        if (playerChunks.isEmpty()) {
+            unloadExpiredChunks(now);
             return;
         }
-        
+
         long t0 = PerformanceLogger.now();
-        // Chunk boundary crossed!
-        lastPlayerChunk = playerChunk;
-        requiredChunksCache.clear(); // Reuse
-        
-        // Process chunks according to policy
-        int searchRadius = Math.max(10, loadPolicy.getMaxLoadedChunks() / 10);
-        
+        lastPlayerChunk = playerChunks.get(0);
+        requiredChunksCache.clear();
+
+        int searchRadius = estimateSearchRadius();
+        for (ChunkCoord playerChunk : playerChunks) {
+            updateRequiredChunksForPlayerChunk(playerChunk, searchRadius, now);
+        }
+
+        markChunksForDeferredUnload(now);
+        unloadExpiredChunks(now);
+
+        if (loadedChunks.size() > loadPolicy.getMaxLoadedChunks()) {
+            unloadOldChunks(requiredChunksCache);
+        }
+
+        if (PerformanceLogger.ENABLED) {
+            PerformanceLogger.log("ChunkManager", "updateLoadedChunks loaded=" + loadedChunks.size() + " loading=" + loadingChunks.size(), PerformanceLogger.now() - t0);
+        }
+    }
+
+    private List<ChunkCoord> collectPlayerChunks(Collection<Vector3> playerPositions) {
+        List<ChunkCoord> playerChunks = new ArrayList<>();
+        Set<ChunkCoord> seen = new HashSet<>();
+        if (playerPositions == null) {
+            return playerChunks;
+        }
+
+        for (Vector3 playerPosition : playerPositions) {
+            if (playerPosition == null || !Float.isFinite(playerPosition.x) || !Float.isFinite(playerPosition.z)) {
+                continue;
+            }
+
+            ChunkCoord chunkCoord = ChunkCoord.fromWorldPos(playerPosition.x, playerPosition.z, Chunk.CHUNK_SIZE);
+            if (seen.add(chunkCoord)) {
+                playerChunks.add(chunkCoord);
+            }
+        }
+        return playerChunks;
+    }
+
+    private void updateRequiredChunksForPlayerChunk(ChunkCoord playerChunk, int searchRadius, long now) {
         for (int dx = -searchRadius; dx <= searchRadius; dx++) {
             for (int dz = -searchRadius; dz <= searchRadius; dz++) {
                 int chunkX = playerChunk.x + dx;
                 int chunkZ = playerChunk.z + dz;
                 ChunkCoord coord = getOrCreateChunkCoord(chunkX, chunkZ);
-                
-                // 1. Memory load decision
-                if (loadPolicy.shouldLoadToMemory(chunkX, chunkZ, playerChunk.x, playerChunk.z)) {
+                boolean shouldRender = loadPolicy.shouldLoadToMemory(chunkX, chunkZ, playerChunk.x, playerChunk.z);
+                boolean shouldKeepLoaded = shouldRender || loadPolicy.shouldKeepLoaded(chunkX, chunkZ, playerChunk.x, playerChunk.z);
+
+                if (shouldKeepLoaded) {
                     requiredChunksCache.add(coord);
+                    unloadEligibleSince.remove(coord);
                     if (!loadedChunks.containsKey(coord)) {
                         loadOrGenerateChunkAsync(coord);
                     } else {
-                        chunkAccessTime.put(coord, System.currentTimeMillis());
+                        chunkAccessTime.put(coord, now);
                     }
-                }
-                
-                // 2. Pregeneration decision (file only)
-                else if (loadPolicy.shouldPregenerate(chunkX, chunkZ, playerChunk.x, playerChunk.z)) {
-                    if (!ChunkSerializer.chunkFileExists(worldPath, coord)) {
-                        pregenerateChunkToDisk(coord);
-                    }
+                } else if (loadPolicy.shouldPregenerate(chunkX, chunkZ, playerChunk.x, playerChunk.z)
+                    && !ChunkSerializer.chunkFileExists(worldPath, coord)) {
+                    pregenerateChunkToDisk(coord);
                 }
             }
-        }
-        
-        // Check memory limit
-        if (loadedChunks.size() > loadPolicy.getMaxLoadedChunks()) {
-            int before = loadedChunks.size();
-            unloadOldChunks(requiredChunksCache);
-            int after = loadedChunks.size();
-            if (PerformanceLogger.ENABLED && before != after) {
-                System.out.printf("[PERF][ChunkManager] unloadOldChunks: %d -> %d%n", before, after);
-            }
-        }
-        
-        processPendingChunks();
-        if (PerformanceLogger.ENABLED) {
-            PerformanceLogger.log("ChunkManager", "updateLoadedChunks loaded=" + loadedChunks.size() + " loading=" + loadingChunks.size(), PerformanceLogger.now() - t0);
         }
     }
-    
-    /**
-     * Pregenerate chunk to disk only
-     */
+
+    private int estimateSearchRadius() {
+        int maxLoaded = Math.max(1, loadPolicy.getMaxLoadedChunks());
+        int estimatedKeepLoadedRadius = (int) Math.ceil((Math.sqrt(maxLoaded) - 1f) / 2f);
+        return Math.max(10, estimatedKeepLoadedRadius + 2);
+    }
+
     private void pregenerateChunkToDisk(ChunkCoord coord) {
         executorService.submit(() -> {
             try {
                 if (!ChunkSerializer.chunkFileExists(worldPath, coord)) {
                     Chunk chunk = new Chunk(coord);
                     chunkGenerator.generateChunk(chunk, defaultBlockType);
+                    chunk.markAsGenerated();
                     ChunkSerializer.saveChunk(chunk, ChunkSerializer.getChunkFile(worldPath, coord));
                 }
             } catch (Exception e) {
@@ -145,201 +165,209 @@ public class ChunkManager {
             }
         });
     }
-    
-    /**
-     * Unload old chunks based on LRU (save to disk first)
-     */
+
     private void unloadOldChunks(Set<ChunkCoord> protectedChunks) {
         List<Map.Entry<ChunkCoord, Long>> sorted = new ArrayList<>(chunkAccessTime.entrySet());
-        sorted.sort(Map.Entry.comparingByValue()); // Oldest first
-        
-        int toRemove = loadedChunks.size() - loadPolicy.getMaxLoadedChunks() + 10; // Remove 10 extra
+        sorted.sort(Map.Entry.comparingByValue());
+
+        int toRemove = loadedChunks.size() - loadPolicy.getMaxLoadedChunks() + 10;
         int removed = 0;
-        
+
         for (Map.Entry<ChunkCoord, Long> entry : sorted) {
-            if (removed >= toRemove) break;
-            
+            if (removed >= toRemove) {
+                break;
+            }
+
             ChunkCoord coord = entry.getKey();
-            
-            // Don't unload protected chunks (within render distance)
-            if (protectedChunks.contains(coord)) {
+            if (protectedChunks.contains(coord) || loadingChunks.contains(coord)) {
                 continue;
             }
-            
-            Chunk chunk = loadedChunks.get(coord);
-            if (chunk != null && chunk.isGenerated()) {
-                // Save to disk
-                try {
-                    ChunkSerializer.saveChunk(chunk, ChunkSerializer.getChunkFile(worldPath, coord));
-                } catch (IOException e) {
-                    System.err.println("[ChunkManager] Failed to save chunk " + coord);
-                    e.printStackTrace();
-                }
-            }
-            
-            loadedChunks.remove(coord);
-            chunkAccessTime.remove(coord);
+
+            unloadChunk(coord);
             removed++;
         }
     }
-    
-    /**
-     * Load or generate chunk asynchronously
-     * ✅ Modified: Create placeholder but never replace it
-     */
+
+    private void markChunksForDeferredUnload(long now) {
+        for (ChunkCoord coord : loadedChunks.keySet()) {
+            if (loadingChunks.contains(coord) || requiredChunksCache.contains(coord)) {
+                unloadEligibleSince.remove(coord);
+                continue;
+            }
+            unloadEligibleSince.putIfAbsent(coord, now);
+        }
+    }
+
+    private void unloadExpiredChunks(long now) {
+        List<ChunkCoord> expired = new ArrayList<>();
+        for (Map.Entry<ChunkCoord, Long> entry : unloadEligibleSince.entrySet()) {
+            ChunkCoord coord = entry.getKey();
+            if (!loadingChunks.contains(coord) && now - entry.getValue() >= UNLOAD_GRACE_MS) {
+                expired.add(coord);
+            }
+        }
+
+        for (ChunkCoord coord : expired) {
+            unloadChunk(coord);
+        }
+    }
+
+    private void unloadChunk(ChunkCoord coord) {
+        Chunk chunk = loadedChunks.get(coord);
+        if (chunk != null && chunk.isGenerated()) {
+            try {
+                ChunkSerializer.saveChunk(chunk, ChunkSerializer.getChunkFile(worldPath, coord));
+            } catch (IOException e) {
+                System.err.println("[ChunkManager] Failed to save chunk " + coord);
+                e.printStackTrace();
+            }
+        }
+
+        loadedChunks.remove(coord);
+        chunkAccessTime.remove(coord);
+        unloadEligibleSince.remove(coord);
+        dirtySet.remove(coord);
+        dirtyChunks.remove(coord);
+    }
+
     private void loadOrGenerateChunkAsync(ChunkCoord coord) {
-        // If already loaded, only update access time
         if (loadedChunks.containsKey(coord)) {
             chunkAccessTime.put(coord, System.currentTimeMillis());
             return;
         }
-        
-        // Skip if already loading
         if (loadingChunks.contains(coord)) {
             return;
         }
-        
-        // ✅ Create placeholder (this object will never be replaced)
-        Chunk chunk = loadedChunks.computeIfAbsent(coord, c -> new Chunk(c));
-        
-        // ✅ Mark as loading (prevent duplicates)
+
+        Chunk chunk = loadedChunks.computeIfAbsent(coord, Chunk::new);
         loadingChunks.add(coord);
-        
+
         executorService.submit(() -> {
             try {
                 File chunkFile = ChunkSerializer.getChunkFile(worldPath, coord);
-                
-                // Try loading from disk
                 if (ChunkSerializer.chunkFileExists(worldPath, coord)) {
                     try {
-                        // ✅ Fill data into existing object
                         ChunkSerializer.loadInto(chunk, chunkFile);
                     } catch (IOException e) {
-                        // Generate new if load fails
                         chunkGenerator.generateChunk(chunk, defaultBlockType);
                         chunk.markAsGenerated();
+                        chunk.setModified(true);
                     }
                 } else {
-                    // Generate new
                     chunkGenerator.generateChunk(chunk, defaultBlockType);
                     chunk.markAsGenerated();
-                    
-                    // Save to disk (commented out)
-                    // try {
-                    //     ChunkSerializer.saveChunk(chunk, chunkFile);
-                    // } catch (IOException e) {
-                    //     e.printStackTrace();
-                    // }
+                    chunk.setModified(true);
                 }
-                
-                // ✅ Loading complete - add to pendingChunks
+
                 pendingChunks.offer(chunk);
-                
             } catch (Exception e) {
                 e.printStackTrace();
-                loadingChunks.remove(coord); // Remove loading flag on failure
+                loadingChunks.remove(coord);
             }
         });
     }
-    
-    /**
-     * Process chunks generated in background (call from main thread)
-     * ✅ Modified: Only remove from loadingChunks (object already in loadedChunks)
-     */
+
     private void processPendingChunks() {
         long t0 = PerformanceLogger.now();
         Chunk chunk;
         int processed = 0;
         List<ChunkCoord> generatedChunks = new ArrayList<>();
-        
-        while ((chunk = pendingChunks.poll()) != null && processed < 4) { // Max 4 chunks per frame
+
+        while ((chunk = pendingChunks.poll()) != null && processed < 4) {
             ChunkCoord coord = chunk.getCoord();
-            
-            // ✅ Loading complete - only remove from loadingChunks
             loadingChunks.remove(coord);
-            
-            // ✅ Update access time (object already in loadedChunks)
             chunkAccessTime.put(coord, System.currentTimeMillis());
-            addDirtyChunk(coord);
+            unloadEligibleSince.remove(coord);
             generatedChunks.add(coord);
             processed++;
         }
-        
-        // ✅ Invalidate adjacent chunk meshes
-        for (ChunkCoord coord : generatedChunks) {
-            invalidateAdjacentChunkMeshes(coord);
+
+        if (lastPlayerChunk != null && generatedChunks.size() > 1) {
+            generatedChunks.sort(Comparator.comparingInt(coord -> chunkDistanceSq(coord, lastPlayerChunk)));
         }
-        
+
+        for (ChunkCoord coord : generatedChunks) {
+            addDirtyChunk(coord);
+        }
+        for (ChunkCoord coord : generatedChunks) {
+            markAdjacentChunksDirty(coord);
+        }
+
         if (PerformanceLogger.ENABLED && processed > 0) {
             System.out.printf("[PERF][ChunkManager] processPendingChunks: %d chunks, %d ms%n", processed, PerformanceLogger.now() - t0);
         }
     }
-    
-    /**
-     * Invalidate meshes of adjacent chunks
-     * ✅ Trigger mesh regeneration so adjacent chunk faces become visible when chunk is created
-     */
-    private void invalidateAdjacentChunkMeshes(ChunkCoord center) {
+
+    private void markAdjacentChunksDirty(ChunkCoord center) {
         ChunkCoord[] adjacents = {
             center.left(),
             center.right(),
             center.front(),
             center.back()
         };
-        
+
         for (ChunkCoord adj : adjacents) {
             Chunk chunk = loadedChunks.get(adj);
             if (chunk != null && chunk.isGenerated()) {
-                chunk.setMesh(null);
                 addDirtyChunk(adj);
             }
         }
     }
-    
-    /**
-     * Add chunk to dirty queue for mesh rebuild (deduplicated)
-     */
+
     public void addDirtyChunk(ChunkCoord coord) {
         if (dirtySet.add(coord)) {
             dirtyChunks.offer(coord);
         }
     }
-    
-    /**
-     * Poll next dirty chunk for rebuild (null if empty)
-     */
+
     public ChunkCoord pollDirtyChunk() {
-        ChunkCoord coord = dirtyChunks.poll();
+        ChunkCoord coord = null;
+        if (lastPlayerChunk == null) {
+            coord = dirtyChunks.poll();
+        } else {
+            int bestDistance = Integer.MAX_VALUE;
+            for (ChunkCoord candidate : dirtyChunks) {
+                int distance = chunkDistanceSq(candidate, lastPlayerChunk);
+                if (distance < bestDistance) {
+                    bestDistance = distance;
+                    coord = candidate;
+                    if (distance == 0) {
+                        break;
+                    }
+                }
+            }
+            if (coord != null) {
+                dirtyChunks.remove(coord);
+            } else {
+                coord = dirtyChunks.poll();
+            }
+        }
+
         if (coord != null) {
             dirtySet.remove(coord);
         }
         return coord;
     }
-    
-    /**
-     * Public method for processing pending chunks (call every frame)
-     */
+
     public void processPendingChunksPublic() {
         processPendingChunks();
     }
-    
-    /**
-     * Generate initial chunks synchronously
-     */
+
     public void generateInitialChunks(float centerX, float centerZ, int totalRadius, int loadRadius) {
         ChunkCoord center = ChunkCoord.fromWorldPos(centerX, centerZ, Chunk.CHUNK_SIZE);
+        lastPlayerChunk = center;
+        unloadEligibleSince.clear();
         int generated = 0;
         int loaded = 0;
-        
-        // 1. Generate to file
+        List<ChunkCoord> generatedChunks = new ArrayList<>();
+
         for (int dx = -totalRadius; dx <= totalRadius; dx++) {
             for (int dz = -totalRadius; dz <= totalRadius; dz++) {
                 ChunkCoord coord = new ChunkCoord(center.x + dx, center.z + dz);
-                
                 if (!ChunkSerializer.chunkFileExists(worldPath, coord)) {
                     Chunk chunk = new Chunk(coord);
                     chunkGenerator.generateChunk(chunk, defaultBlockType);
-                    
+                    chunk.markAsGenerated();
                     try {
                         ChunkSerializer.saveChunk(chunk, ChunkSerializer.getChunkFile(worldPath, coord));
                         generated++;
@@ -349,12 +377,10 @@ public class ChunkManager {
                 }
             }
         }
-        
-        // 2. Load to memory
+
         for (int dx = -loadRadius; dx <= loadRadius; dx++) {
             for (int dz = -loadRadius; dz <= loadRadius; dz++) {
                 ChunkCoord coord = new ChunkCoord(center.x + dx, center.z + dz);
-                
                 try {
                     Chunk chunk = ChunkSerializer.loadChunk(ChunkSerializer.getChunkFile(worldPath, coord));
                     loadedChunks.put(coord, chunk);
@@ -365,177 +391,172 @@ public class ChunkManager {
                 }
             }
         }
-        
-        for (ChunkCoord coord : loadedChunks.keySet()) {
+
+        generatedChunks.addAll(loadedChunks.keySet());
+        generatedChunks.sort(Comparator.comparingInt(coord -> chunkDistanceSq(coord, center)));
+        for (ChunkCoord coord : generatedChunks) {
             addDirtyChunk(coord);
         }
         System.out.println("[ChunkManager] Generated: " + generated + ", Loaded: " + loaded);
     }
-    
-    /**
-     * Get chunk at coordinate
-     */
+
+    private int chunkDistanceSq(ChunkCoord a, ChunkCoord b) {
+        int dx = a.x - b.x;
+        int dz = a.z - b.z;
+        return dx * dx + dz * dz;
+    }
+
     public Chunk getChunk(ChunkCoord coord) {
         return loadedChunks.get(coord);
     }
-    
-    /**
-     * Get block at world position
-     */
+
+    public void replaceChunk(Chunk chunk) {
+        ChunkCoord coord = chunk.getCoord();
+        loadedChunks.put(coord, chunk);
+        chunkAccessTime.put(coord, System.currentTimeMillis());
+        unloadEligibleSince.remove(coord);
+        loadingChunks.remove(coord);
+        addDirtyChunk(coord);
+        markAdjacentChunksDirty(coord);
+    }
+
     public Chunk.BlockData getBlockAt(Vector3 worldPos) {
         ChunkCoord coord = ChunkCoord.fromWorldPos(worldPos.x, worldPos.z, Chunk.CHUNK_SIZE);
         Chunk chunk = loadedChunks.get(coord);
-        
         if (chunk == null || !chunk.isGenerated()) {
             return null;
         }
-        
-        // ✅ 음수 좌표 안전: Math.floor → Math.floorMod
+
         int blockX = (int) Math.floor(worldPos.x);
         int blockZ = (int) Math.floor(worldPos.z);
         int localX = Math.floorMod(blockX, Chunk.CHUNK_SIZE);
         int localZ = Math.floorMod(blockZ, Chunk.CHUNK_SIZE);
-        
         return chunk.getBlock(localX, worldPos.y, localZ);
     }
-    
-    /**
-     * Check if block exists at world position (for face culling)
-     */
+
     public boolean hasBlockAt(float worldX, float worldY, float worldZ) {
         ChunkCoord coord = ChunkCoord.fromWorldPos(worldX, worldZ, Chunk.CHUNK_SIZE);
         Chunk chunk = loadedChunks.get(coord);
-        
         if (chunk == null || !chunk.isGenerated()) {
-            return true;  // UNKNOWN = AIR
+            return false;
         }
-        
-        // ✅ Negative coordinate safe: Math.floor → Math.floorMod
+
         int blockX = (int) Math.floor(worldX);
         int blockZ = (int) Math.floor(worldZ);
         int localX = Math.floorMod(blockX, Chunk.CHUNK_SIZE);
         int localZ = Math.floorMod(blockZ, Chunk.CHUNK_SIZE);
-        
         return chunk.hasBlockAt(localX, worldY, localZ);
     }
-    
-    /**
-     * Add block at world position
-     */
+
     public void addBlock(Vector3 worldPos, int blockType) {
         ChunkCoord coord = ChunkCoord.fromWorldPos(worldPos.x, worldPos.z, Chunk.CHUNK_SIZE);
         Chunk chunk = loadedChunks.get(coord);
-        
-        if (chunk != null && chunk.isGenerated()) {
-            chunk.addBlockWorld(worldPos, blockType);
+
+        if (chunk == null) {
+            chunk = new Chunk(coord);
+            chunk.markAsGenerated();
+            chunk.setModified(true);
+            loadedChunks.put(coord, chunk);
+        } else if (!chunk.isGenerated()) {
+            chunk.markAsGenerated();
         }
+
+        chunk.addBlockWorld(worldPos, blockType);
+        chunkAccessTime.put(coord, System.currentTimeMillis());
+        unloadEligibleSince.remove(coord);
     }
-    
-    /**
-     * Remove block at world position
-     */
+
     public boolean removeBlock(Vector3 worldPos) {
         ChunkCoord coord = ChunkCoord.fromWorldPos(worldPos.x, worldPos.z, Chunk.CHUNK_SIZE);
         Chunk chunk = loadedChunks.get(coord);
-        
         if (chunk == null || !chunk.isGenerated()) {
             return false;
         }
-        
-        // ✅ Negative coordinate safe: Math.floor → Math.floorMod
+
         int blockX = (int) Math.floor(worldPos.x);
         int blockZ = (int) Math.floor(worldPos.z);
         int localX = Math.floorMod(blockX, Chunk.CHUNK_SIZE);
         int localZ = Math.floorMod(blockZ, Chunk.CHUNK_SIZE);
-        
         return chunk.removeBlock(localX, worldPos.y, localZ);
     }
-    
-    /**
-     * Get all blocks from loaded chunks
-     */
+
     public List<Chunk.BlockData> getAllBlocks() {
         List<Chunk.BlockData> allBlocks = new ArrayList<>();
-        
         for (Chunk chunk : loadedChunks.values()) {
             if (chunk.isGenerated()) {
                 allBlocks.addAll(chunk.getBlocks());
             }
         }
-        
         return allBlocks;
     }
-    
-    /**
-     * Get center height of chunk at world position
-     */
+
     public float getChunkCenterHeight(float worldX, float worldZ) {
         ChunkCoord coord = ChunkCoord.fromWorldPos(worldX, worldZ, Chunk.CHUNK_SIZE);
         Chunk chunk = loadedChunks.get(coord);
-        
         if (chunk != null && chunk.isGenerated()) {
             return chunk.getCenterHeight();
         }
-        
         return 0f;
     }
-    
-    /**
-     * Get all loaded chunks
-     */
+
     public Collection<Chunk> getLoadedChunks() {
         return loadedChunks.values();
     }
-    
-    /**
-     * Get snapshot of all block positions as world coordinates (thread-safe)
-     * ✅ Prevents ConcurrentModificationException
-     */
+
+    public void removeLoadedChunk(ChunkCoord coord) {
+        Chunk removed = loadedChunks.remove(coord);
+        if (removed == null) {
+            return;
+        }
+
+        chunkAccessTime.remove(coord);
+        unloadEligibleSince.remove(coord);
+        loadingChunks.remove(coord);
+        dirtySet.remove(coord);
+        dirtyChunks.remove(coord);
+    }
+
+    public boolean isChunkVisible(ChunkCoord coord) {
+        if (lastPlayerChunk == null) {
+            return true;
+        }
+        return loadPolicy.shouldLoadToMemory(coord.x, coord.z, lastPlayerChunk.x, lastPlayerChunk.z);
+    }
+
     public List<Vector3> getBlockPositionsSnapshot() {
         List<Vector3> snapshot = new ArrayList<>();
-        
         for (Chunk chunk : loadedChunks.values()) {
-            if (!chunk.isGenerated()) continue;
-            
+            if (!chunk.isGenerated()) {
+                continue;
+            }
+
             ChunkCoord coord = chunk.getCoord();
             for (BlockPos localPos : chunk.getBlockPosSnapshot()) {
-                // Local → World coordinate conversion
                 float worldX = coord.x * Chunk.CHUNK_SIZE + localPos.x();
                 float worldY = localPos.y();
                 float worldZ = coord.z * Chunk.CHUNK_SIZE + localPos.z();
                 snapshot.add(new Vector3(worldX, worldY, worldZ));
             }
         }
-        
         return snapshot;
     }
-    
-    /**
-     * Get nearby chunks within radius (for physics/collision)
-     * @param radius Chunk radius (1 = 3x3, 2 = 5x5)
-     */
+
     public List<Chunk> getNearbyChunks(float worldX, float worldZ, int radius) {
         ChunkCoord centerChunk = ChunkCoord.fromWorldPos(worldX, worldZ, Chunk.CHUNK_SIZE);
         List<Chunk> nearbyChunks = new ArrayList<>();
-        
+
         for (int dx = -radius; dx <= radius; dx++) {
             for (int dz = -radius; dz <= radius; dz++) {
                 ChunkCoord coord = new ChunkCoord(centerChunk.x + dx, centerChunk.z + dz);
                 Chunk chunk = loadedChunks.get(coord);
-                
                 if (chunk != null && chunk.isGenerated()) {
                     nearbyChunks.add(chunk);
                 }
             }
         }
-        
         return nearbyChunks;
     }
-    
-    
-    /**
-     * Shutdown executor threads
-     */
+
     public void shutdown() {
         executorService.shutdown();
         try {
@@ -544,6 +565,23 @@ public class ChunkManager {
             }
         } catch (InterruptedException e) {
             executorService.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
+
+        saveLoadedChunks();
+    }
+
+    private void saveLoadedChunks() {
+        for (Chunk chunk : loadedChunks.values()) {
+            if (chunk == null || !chunk.isGenerated() || !chunk.isModified()) {
+                continue;
+            }
+            try {
+                ChunkSerializer.saveChunk(chunk, ChunkSerializer.getChunkFile(worldPath, chunk.getCoord()));
+            } catch (IOException e) {
+                System.err.println("[ChunkManager] Failed to save chunk on shutdown " + chunk.getCoord());
+                e.printStackTrace();
+            }
         }
     }
 }

@@ -1,5 +1,7 @@
 # Voxelite
 
+> Note: `voxelite` is now the headless core module only. Rendering, camera, input, HUD, and GPU mesh code moved to the sibling `voxelient` project. Some older examples below still describe the pre-split API and should be read as historical context until the README is fully refreshed.
+
 A lightweight voxel game engine built on LibGDX, designed for creating Minecraft-style block-based games.
 
 ## Overview
