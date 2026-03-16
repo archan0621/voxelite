@@ -35,8 +35,8 @@ public class ChunkManager {
     private final IChunkLoadPolicy loadPolicy;
     private final ExecutorService executorService;
     private final Queue<Chunk> pendingChunks;
-    private final Queue<ChunkCoord> dirtyChunks = new ConcurrentLinkedQueue<>();
-    private final Set<ChunkCoord> dirtySet = ConcurrentHashMap.newKeySet();
+    private final Queue<RenderSectionKey> dirtyChunks = new ConcurrentLinkedQueue<>();
+    private final Set<RenderSectionKey> dirtySet = ConcurrentHashMap.newKeySet();
     private final Set<ChunkCoord> loadingChunks = ConcurrentHashMap.newKeySet();
     private final Set<ChunkCoord> requiredChunksCache = new HashSet<>();
     private final Map<ChunkCoord, Long> unloadEligibleSince = new HashMap<>();
@@ -226,8 +226,7 @@ public class ChunkManager {
         loadedChunks.remove(coord);
         chunkAccessTime.remove(coord);
         unloadEligibleSince.remove(coord);
-        dirtySet.remove(coord);
-        dirtyChunks.remove(coord);
+        clearDirtySections(coord);
     }
 
     private void loadOrGenerateChunkAsync(ChunkCoord coord) {
@@ -315,38 +314,110 @@ public class ChunkManager {
     }
 
     public void addDirtyChunk(ChunkCoord coord) {
-        if (dirtySet.add(coord)) {
-            dirtyChunks.offer(coord);
+        if (coord == null) {
+            return;
+        }
+
+        for (int sectionY = 0; sectionY < Chunk.getRenderSectionCount(); sectionY++) {
+            addDirtySection(coord, sectionY);
         }
     }
 
-    public ChunkCoord pollDirtyChunk() {
-        ChunkCoord coord = null;
+    public void addDirtySection(ChunkCoord coord, int sectionY) {
+        if (coord == null || !Chunk.isValidRenderSectionIndex(sectionY)) {
+            return;
+        }
+
+        RenderSectionKey key = new RenderSectionKey(coord, sectionY);
+        if (dirtySet.add(key)) {
+            dirtyChunks.offer(key);
+        }
+    }
+
+    public void addDirtySectionsAroundBlock(Vector3 worldPos) {
+        if (worldPos == null || !Float.isFinite(worldPos.x) || !Float.isFinite(worldPos.y) || !Float.isFinite(worldPos.z)) {
+            return;
+        }
+
+        ChunkCoord coord = ChunkCoord.fromWorldPos(worldPos.x, worldPos.z, Chunk.CHUNK_SIZE);
+        int blockX = (int) Math.floor(worldPos.x);
+        int blockY = (int) Math.floor(worldPos.y);
+        int blockZ = (int) Math.floor(worldPos.z);
+        int localX = Math.floorMod(blockX, Chunk.CHUNK_SIZE);
+        int localZ = Math.floorMod(blockZ, Chunk.CHUNK_SIZE);
+        int currentSection = Chunk.getRenderSectionIndex(blockY);
+        int aboveSection = Chunk.getRenderSectionIndex(blockY + 1);
+        int belowSection = Chunk.getRenderSectionIndex(blockY - 1);
+
+        addDirtySection(coord, currentSection);
+        if (aboveSection != currentSection) {
+            addDirtySection(coord, aboveSection);
+        }
+        if (belowSection != currentSection) {
+            addDirtySection(coord, belowSection);
+        }
+
+        if (localX == 0) {
+            addDirtySection(coord.left(), currentSection);
+        } else if (localX == Chunk.CHUNK_SIZE - 1) {
+            addDirtySection(coord.right(), currentSection);
+        }
+
+        if (localZ == 0) {
+            addDirtySection(coord.back(), currentSection);
+        } else if (localZ == Chunk.CHUNK_SIZE - 1) {
+            addDirtySection(coord.front(), currentSection);
+        }
+    }
+
+    public RenderSectionKey pollDirtySection() {
+        RenderSectionKey key = null;
         if (lastPlayerChunk == null) {
-            coord = dirtyChunks.poll();
+            key = dirtyChunks.poll();
         } else {
             int bestDistance = Integer.MAX_VALUE;
-            for (ChunkCoord candidate : dirtyChunks) {
-                int distance = chunkDistanceSq(candidate, lastPlayerChunk);
+            for (RenderSectionKey candidate : dirtyChunks) {
+                int distance = chunkDistanceSq(candidate.chunkCoord(), lastPlayerChunk);
                 if (distance < bestDistance) {
                     bestDistance = distance;
-                    coord = candidate;
+                    key = candidate;
                     if (distance == 0) {
                         break;
                     }
                 }
             }
-            if (coord != null) {
-                dirtyChunks.remove(coord);
+            if (key != null) {
+                dirtyChunks.remove(key);
             } else {
-                coord = dirtyChunks.poll();
+                key = dirtyChunks.poll();
             }
         }
 
-        if (coord != null) {
-            dirtySet.remove(coord);
+        if (key != null) {
+            dirtySet.remove(key);
         }
-        return coord;
+        return key;
+    }
+
+    public Set<Integer> drainDirtySections(ChunkCoord coord) {
+        Set<Integer> sections = new HashSet<>();
+        if (coord == null) {
+            return sections;
+        }
+
+        List<RenderSectionKey> matches = new ArrayList<>();
+        for (RenderSectionKey candidate : dirtyChunks) {
+            if (candidate.chunkCoord().equals(coord)) {
+                matches.add(candidate);
+            }
+        }
+
+        for (RenderSectionKey match : matches) {
+            if (dirtyChunks.remove(match) && dirtySet.remove(match)) {
+                sections.add(match.sectionY());
+            }
+        }
+        return sections;
     }
 
     public void processPendingChunksPublic() {
@@ -512,8 +583,7 @@ public class ChunkManager {
         chunkAccessTime.remove(coord);
         unloadEligibleSince.remove(coord);
         loadingChunks.remove(coord);
-        dirtySet.remove(coord);
-        dirtyChunks.remove(coord);
+        clearDirtySections(coord);
     }
 
     public boolean isChunkVisible(ChunkCoord coord) {
@@ -583,5 +653,13 @@ public class ChunkManager {
                 e.printStackTrace();
             }
         }
+    }
+
+    private void clearDirtySections(ChunkCoord coord) {
+        if (coord == null) {
+            return;
+        }
+
+        drainDirtySections(coord);
     }
 }

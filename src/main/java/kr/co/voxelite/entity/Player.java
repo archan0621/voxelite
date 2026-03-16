@@ -1,5 +1,6 @@
 package kr.co.voxelite.entity;
 
+import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Vector3;
 import kr.co.voxelite.physics.AABB;
 
@@ -17,6 +18,9 @@ public class Player {
     public static final float WIDTH = 0.6f;
     public static final float HEIGHT = 1.8f;
     public static final float EYE_HEIGHT = 1.62f;
+    private static final float HALF_WIDTH = WIDTH / 2f;
+    private static final float HALF_HEIGHT = HEIGHT / 2f;
+    private static final float BLOCK_HALF_SIZE = 0.5f;
     
     public static final float GRAVITY = -20f;
     public static final float JUMP_VELOCITY = 7f;
@@ -26,9 +30,8 @@ public class Player {
         this.position = new Vector3(startPosition);
         this.velocity = new Vector3(0, 0, 0);
         this.onGround = true;
-        
-        Vector3 center = new Vector3(startPosition.x, startPosition.y + HEIGHT / 2f, startPosition.z);
-        this.aabb = new AABB(center, WIDTH / 2f, HEIGHT / 2f, WIDTH / 2f);
+
+        this.aabb = createCollisionAABB(startPosition);
     }
     
     /**
@@ -45,7 +48,7 @@ public class Player {
     }
     
     private void updateAABB() {
-        aabb.setCenter(position.x, position.y + HEIGHT / 2f, position.z);
+        aabb.setCenter(position.x, position.y + HALF_HEIGHT, position.z);
     }
     
     /**
@@ -60,7 +63,35 @@ public class Player {
     public AABB getAABB() { return aabb; }
     public boolean isOnGround() { return onGround; }
     public boolean isGravityEnabled() { return gravityEnabled; }
-    
+
+    /**
+     * Returns the canonical collision box for a player standing at the given feet position.
+     */
+    public static AABB createCollisionAABB(Vector3 playerPosition) {
+        return new AABB(
+            new Vector3(playerPosition.x, playerPosition.y + HALF_HEIGHT, playerPosition.z),
+            HALF_WIDTH,
+            HALF_HEIGHT,
+            HALF_WIDTH
+        );
+    }
+
+    /**
+     * Checks whether the player's collision box intersects the given block cell.
+     */
+    public boolean collidesWithBlock(Vector3 blockPosition) {
+        return blockPosition != null && aabb.intersects(createBlockAABB(blockPosition));
+    }
+
+    /**
+     * Checks block intersection for an arbitrary player feet position without requiring an instance.
+     */
+    public static boolean collidesWithBlockAt(Vector3 playerPosition, Vector3 blockPosition) {
+        return playerPosition != null
+            && blockPosition != null
+            && createCollisionAABB(playerPosition).intersects(createBlockAABB(blockPosition));
+    }
+
     public void setOnGround(boolean onGround) { this.onGround = onGround; }
     
     /**
@@ -69,5 +100,13 @@ public class Player {
      */
     protected void setGravityEnabled(boolean enabled) {
         this.gravityEnabled = enabled;
+    }
+
+    private static AABB createBlockAABB(Vector3 blockPosition) {
+        return new AABB(new Vector3(
+            MathUtils.floor(blockPosition.x),
+            MathUtils.floor(blockPosition.y),
+            MathUtils.floor(blockPosition.z)
+        ), BLOCK_HALF_SIZE);
     }
 }

@@ -23,7 +23,6 @@ public class VoxeliteConfig {
     public Vector3 playerStartPosition = new Vector3(0f, -0.5f, 0f);
     public float gravity = -20f;
     public float jumpVelocity = 7f;
-
     public VoxeliteConfig() {
     }
 

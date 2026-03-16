@@ -60,4 +60,17 @@ class PhysicsSystemTest {
         assertEquals(Player.JUMP_VELOCITY, player.getVelocity().y, 0.001f);
         assertFalse(player.isOnGround());
     }
+
+    @Test
+    void update_PlayerRunsIntoPositiveXWall_ShouldClampAgainstBlockFace() {
+        world.addBlock(new Vector3(1, 0, 0), 0);
+        player.setPosition(0.1f, 0f, 0f);
+        player.setOnGround(true);
+        player.getVelocity().set(12f, 0f, 0f);
+
+        physics.update(player, 1f / 60f);
+
+        assertEquals(0f, player.getVelocity().x, 0.001f);
+        assertEquals(0.5f - Player.WIDTH / 2f - 0.001f, player.getPosition().x, 0.001f);
+    }
 }

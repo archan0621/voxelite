@@ -13,6 +13,9 @@ import java.util.Map;
  */
 public class Chunk {
     public static final int CHUNK_SIZE = 16;
+    public static final int RENDER_SECTION_HEIGHT = 16;
+    private static final int MAX_RENDER_HEIGHT = 256;
+    private static final int RENDER_SECTION_COUNT = MAX_RENDER_HEIGHT / RENDER_SECTION_HEIGHT;
     private static final float BOUNDS_MIN_Y = -1f;
     private static final float BOUNDS_MAX_Y = 256f;
 
@@ -38,6 +41,32 @@ public class Chunk {
 
     public BoundingBox getBounds() {
         return bounds;
+    }
+
+    public BoundingBox getRenderSectionBounds(int sectionY) {
+        if (sectionY < 0 || sectionY >= RENDER_SECTION_COUNT) {
+            throw new IllegalArgumentException("Invalid render section index: " + sectionY);
+        }
+
+        float worldX = coord.x * CHUNK_SIZE;
+        float worldZ = coord.z * CHUNK_SIZE;
+        float minY = sectionY * RENDER_SECTION_HEIGHT;
+        float maxY = minY + RENDER_SECTION_HEIGHT;
+        Vector3 min = new Vector3(worldX, minY, worldZ);
+        Vector3 max = new Vector3(worldX + CHUNK_SIZE, maxY, worldZ + CHUNK_SIZE);
+        return new BoundingBox(min, max);
+    }
+
+    public static int getRenderSectionCount() {
+        return RENDER_SECTION_COUNT;
+    }
+
+    public static boolean isValidRenderSectionIndex(int sectionY) {
+        return sectionY >= 0 && sectionY < RENDER_SECTION_COUNT;
+    }
+
+    public static int getRenderSectionIndex(int blockY) {
+        return Math.floorDiv(blockY, RENDER_SECTION_HEIGHT);
     }
 
     public ChunkState getState() {
@@ -109,7 +138,9 @@ public class Chunk {
 
         for (BlockData block : blocks.values()) {
             BlockPos pos = block.pos;
-            if (pos.x() == centerX && pos.z() == centerZ && pos.y() > maxY) {
+            if (pos.x() == centerX
+                && pos.z() == centerZ
+                && pos.y() > maxY) {
                 maxY = pos.y();
             }
         }

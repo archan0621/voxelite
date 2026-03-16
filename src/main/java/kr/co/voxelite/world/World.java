@@ -63,7 +63,7 @@ public class World {
             return;
         }
         chunkManager.addBlock(position, blockType);
-        markChunksDirty(position);
+        markSectionsDirty(position);
     }
 
     public void addBlock(Vector3 position) {
@@ -76,7 +76,7 @@ public class World {
         }
         boolean removed = chunkManager.removeBlock(position);
         if (removed) {
-            markChunksDirty(position);
+            markSectionsDirty(position);
         }
         return removed;
     }
@@ -205,31 +205,9 @@ public class World {
         return new ChunkManager(worldPath, 0, generator, loadPolicy);
     }
 
-    private void markChunksDirty(Vector3 position) {
-        ChunkCoord coord = ChunkCoord.fromWorldPos(position.x, position.z, Chunk.CHUNK_SIZE);
-        markChunkDirty(coord);
-
-        int blockX = (int) Math.floor(position.x);
-        int blockZ = (int) Math.floor(position.z);
-        int localX = Math.floorMod(blockX, Chunk.CHUNK_SIZE);
-        int localZ = Math.floorMod(blockZ, Chunk.CHUNK_SIZE);
-
-        if (localX == 0) {
-            markChunkDirty(new ChunkCoord(coord.x - 1, coord.z));
-        } else if (localX == Chunk.CHUNK_SIZE - 1) {
-            markChunkDirty(new ChunkCoord(coord.x + 1, coord.z));
-        }
-
-        if (localZ == 0) {
-            markChunkDirty(new ChunkCoord(coord.x, coord.z - 1));
-        } else if (localZ == Chunk.CHUNK_SIZE - 1) {
-            markChunkDirty(new ChunkCoord(coord.x, coord.z + 1));
-        }
-    }
-
-    private void markChunkDirty(ChunkCoord coord) {
+    private void markSectionsDirty(Vector3 position) {
         if (chunkManager != null) {
-            chunkManager.addDirtyChunk(coord);
+            chunkManager.addDirtySectionsAroundBlock(position);
         }
     }
 

@@ -2,12 +2,7 @@ package kr.co.voxelite.physics;
 
 import com.badlogic.gdx.math.Vector3;
 import kr.co.voxelite.entity.Player;
-import kr.co.voxelite.util.PerformanceLogger;
-import kr.co.voxelite.world.ChunkCoord;
 import kr.co.voxelite.world.World;
-
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * Minecraft-style axis-separated collision resolution.
@@ -17,18 +12,16 @@ import java.util.List;
 public class PhysicsSystem {
     private final World world;
     private static final float BLOCK_SIZE = 1.0f;
+    private static final float BLOCK_HALF_SIZE = BLOCK_SIZE / 2f;
     private static final float COLLISION_MARGIN = 0.001f; // Collision margin
-    private static final int PHYSICS_CHUNK_RADIUS = 1; // Physics calculation chunk radius (3x3)
+    private static final float GROUND_THRESHOLD = 0.02f;
+    private static final float MIN_XZ_OVERLAP = 0.1f;
     
     // Fixed Timestep
     private static final float FIXED_TIMESTEP = 1f / 60f; // 60Hz physics update
     private static final float MAX_FRAME_TIME = 0.25f; // Maximum frame time (prevents spiral of death)
     private float accumulator = 0f;
-    
-    // Nearby blocks cache (updated only when chunk changes)
-    private List<Vector3> nearbyBlocks = new ArrayList<>();
-    private ChunkCoord lastPhysicsChunk = null;
-    private boolean cacheInvalidated = false; // Cache invalidation flag due to block changes
+    private final AABB scratchBlockAABB = new AABB(new Vector3(), BLOCK_HALF_SIZE);
     
     public PhysicsSystem(World world) {
         this.world = world;
@@ -38,7 +31,7 @@ public class PhysicsSystem {
      * Invalidates cache when blocks change (will be updated in next physics step)
      */
     public void invalidateCache() {
-        this.cacheInvalidated = true;
+        // No-op: broad-phase now queries only blocks inside the swept AABB, so there is no chunk cache to invalidate.
     }
     
     /**
@@ -65,18 +58,6 @@ public class PhysicsSystem {
      * Single physics step with fixed timestep
      */
     private void stepPhysics(Player player, float dt) {
-        // Update nearby blocks (on chunk movement or cache invalidation)
-        Vector3 pos = player.getPosition();
-        ChunkCoord currentChunk = world.getChunkCoordAt(pos.x, pos.z);
-        
-        if (lastPhysicsChunk == null || !lastPhysicsChunk.equals(currentChunk) || cacheInvalidated) {
-            long t0 = PerformanceLogger.now();
-            nearbyBlocks = world.getNearbyBlockPositions(pos.x, pos.z, PHYSICS_CHUNK_RADIUS);
-            lastPhysicsChunk = currentChunk;
-            cacheInvalidated = false;
-            PerformanceLogger.log("Physics", "getNearbyBlockPositions count=" + nearbyBlocks.size(), PerformanceLogger.now() - t0);
-        }
-        
         applyGravity(player, dt);
         
         float dx = player.getVelocity().x * dt;
@@ -198,10 +179,25 @@ public class PhysicsSystem {
      * Checks if player AABB intersects any block (nearby chunks only)
      */
     private boolean checkCollision(AABB playerAABB) {
-        for (Vector3 blockPos : nearbyBlocks) {
-            AABB blockAABB = new AABB(blockPos, BLOCK_SIZE / 2f);
-            if (playerAABB.intersects(blockAABB)) {
-                return true;
+        int minBlockX = getMinBlockCenter(playerAABB.getMin().x);
+        int maxBlockX = getMaxBlockCenter(playerAABB.getMax().x);
+        int minBlockY = getMinBlockCenter(playerAABB.getMin().y);
+        int maxBlockY = getMaxBlockCenter(playerAABB.getMax().y);
+        int minBlockZ = getMinBlockCenter(playerAABB.getMin().z);
+        int maxBlockZ = getMaxBlockCenter(playerAABB.getMax().z);
+
+        for (int blockX = minBlockX; blockX <= maxBlockX; blockX++) {
+            for (int blockY = minBlockY; blockY <= maxBlockY; blockY++) {
+                for (int blockZ = minBlockZ; blockZ <= maxBlockZ; blockZ++) {
+                    if (!world.hasBlockAt(blockX, blockY, blockZ)) {
+                        continue;
+                    }
+
+                    scratchBlockAABB.setCenter(blockX, blockY, blockZ);
+                    if (playerAABB.intersects(scratchBlockAABB)) {
+                        return true;
+                    }
+                }
             }
         }
         return false;
@@ -212,10 +208,25 @@ public class PhysicsSystem {
      * Only checks blocks that have actual Y-axis penetration within player AABB's X/Z range
      */
     private boolean checkCollisionY(AABB playerAABB) {
-        for (Vector3 blockPos : nearbyBlocks) {
-            AABB blockAABB = new AABB(blockPos, BLOCK_SIZE / 2f);
-            if (playerAABB.intersectsOnY(blockAABB)) {
-                return true;
+        int minBlockX = getMinBlockCenter(playerAABB.getMin().x);
+        int maxBlockX = getMaxBlockCenter(playerAABB.getMax().x);
+        int minBlockY = getMinBlockCenter(playerAABB.getMin().y);
+        int maxBlockY = getMaxBlockCenter(playerAABB.getMax().y);
+        int minBlockZ = getMinBlockCenter(playerAABB.getMin().z);
+        int maxBlockZ = getMaxBlockCenter(playerAABB.getMax().z);
+
+        for (int blockX = minBlockX; blockX <= maxBlockX; blockX++) {
+            for (int blockY = minBlockY; blockY <= maxBlockY; blockY++) {
+                for (int blockZ = minBlockZ; blockZ <= maxBlockZ; blockZ++) {
+                    if (!world.hasBlockAt(blockX, blockY, blockZ)) {
+                        continue;
+                    }
+
+                    scratchBlockAABB.setCenter(blockX, blockY, blockZ);
+                    if (playerAABB.intersectsOnY(scratchBlockAABB)) {
+                        return true;
+                    }
+                }
             }
         }
         return false;
@@ -225,10 +236,25 @@ public class PhysicsSystem {
      * Checks only X-axis direction collision (ignores Y/Z overlap)
      */
     private boolean checkCollisionX(AABB playerAABB) {
-        for (Vector3 blockPos : nearbyBlocks) {
-            AABB blockAABB = new AABB(blockPos, BLOCK_SIZE / 2f);
-            if (playerAABB.intersectsOnX(blockAABB)) {
-                return true;
+        int minBlockX = getMinBlockCenter(playerAABB.getMin().x);
+        int maxBlockX = getMaxBlockCenter(playerAABB.getMax().x);
+        int minBlockY = getMinBlockCenter(playerAABB.getMin().y);
+        int maxBlockY = getMaxBlockCenter(playerAABB.getMax().y);
+        int minBlockZ = getMinBlockCenter(playerAABB.getMin().z);
+        int maxBlockZ = getMaxBlockCenter(playerAABB.getMax().z);
+
+        for (int blockX = minBlockX; blockX <= maxBlockX; blockX++) {
+            for (int blockY = minBlockY; blockY <= maxBlockY; blockY++) {
+                for (int blockZ = minBlockZ; blockZ <= maxBlockZ; blockZ++) {
+                    if (!world.hasBlockAt(blockX, blockY, blockZ)) {
+                        continue;
+                    }
+
+                    scratchBlockAABB.setCenter(blockX, blockY, blockZ);
+                    if (playerAABB.intersectsOnX(scratchBlockAABB)) {
+                        return true;
+                    }
+                }
             }
         }
         return false;
@@ -238,10 +264,25 @@ public class PhysicsSystem {
      * Checks only Z-axis direction collision (ignores X/Y overlap)
      */
     private boolean checkCollisionZ(AABB playerAABB) {
-        for (Vector3 blockPos : nearbyBlocks) {
-            AABB blockAABB = new AABB(blockPos, BLOCK_SIZE / 2f);
-            if (playerAABB.intersectsOnZ(blockAABB)) {
-                return true;
+        int minBlockX = getMinBlockCenter(playerAABB.getMin().x);
+        int maxBlockX = getMaxBlockCenter(playerAABB.getMax().x);
+        int minBlockY = getMinBlockCenter(playerAABB.getMin().y);
+        int maxBlockY = getMaxBlockCenter(playerAABB.getMax().y);
+        int minBlockZ = getMinBlockCenter(playerAABB.getMin().z);
+        int maxBlockZ = getMaxBlockCenter(playerAABB.getMax().z);
+
+        for (int blockX = minBlockX; blockX <= maxBlockX; blockX++) {
+            for (int blockY = minBlockY; blockY <= maxBlockY; blockY++) {
+                for (int blockZ = minBlockZ; blockZ <= maxBlockZ; blockZ++) {
+                    if (!world.hasBlockAt(blockX, blockY, blockZ)) {
+                        continue;
+                    }
+
+                    scratchBlockAABB.setCenter(blockX, blockY, blockZ);
+                    if (playerAABB.intersectsOnZ(scratchBlockAABB)) {
+                        return true;
+                    }
+                }
             }
         }
         return false;
@@ -254,12 +295,29 @@ public class PhysicsSystem {
     private float findFloorY(AABB playerAABB) {
         float highestFloor = -Float.MAX_VALUE;
 
-        for (Vector3 blockPos : nearbyBlocks) {
-            AABB blockAABB = new AABB(blockPos, BLOCK_SIZE / 2f);
-            if (playerAABB.intersectsOnY(blockAABB)) {
-                float blockTop = blockPos.y + BLOCK_SIZE / 2f;
-                if (blockTop > highestFloor) {
-                    highestFloor = blockTop;
+        int minBlockX = getMinBlockCenter(playerAABB.getMin().x);
+        int maxBlockX = getMaxBlockCenter(playerAABB.getMax().x);
+        int minBlockY = getMinBlockCenter(playerAABB.getMin().y);
+        int maxBlockY = getMaxBlockCenter(playerAABB.getMax().y);
+        int minBlockZ = getMinBlockCenter(playerAABB.getMin().z);
+        int maxBlockZ = getMaxBlockCenter(playerAABB.getMax().z);
+
+        for (int blockX = minBlockX; blockX <= maxBlockX; blockX++) {
+            for (int blockY = minBlockY; blockY <= maxBlockY; blockY++) {
+                for (int blockZ = minBlockZ; blockZ <= maxBlockZ; blockZ++) {
+                    if (!world.hasBlockAt(blockX, blockY, blockZ)) {
+                        continue;
+                    }
+
+                    scratchBlockAABB.setCenter(blockX, blockY, blockZ);
+                    if (!playerAABB.intersectsOnY(scratchBlockAABB)) {
+                        continue;
+                    }
+
+                    float blockTop = blockY + BLOCK_HALF_SIZE;
+                    if (blockTop > highestFloor) {
+                        highestFloor = blockTop;
+                    }
                 }
             }
         }
@@ -273,12 +331,29 @@ public class PhysicsSystem {
     private float findCeilingY(AABB playerAABB) {
         float lowestCeiling = Float.MAX_VALUE;
 
-        for (Vector3 blockPos : nearbyBlocks) {
-            AABB blockAABB = new AABB(blockPos, BLOCK_SIZE / 2f);
-            if (playerAABB.intersectsOnY(blockAABB)) {
-                float blockBottom = blockPos.y - BLOCK_SIZE / 2f;
-                if (blockBottom < lowestCeiling) {
-                    lowestCeiling = blockBottom;
+        int minBlockX = getMinBlockCenter(playerAABB.getMin().x);
+        int maxBlockX = getMaxBlockCenter(playerAABB.getMax().x);
+        int minBlockY = getMinBlockCenter(playerAABB.getMin().y);
+        int maxBlockY = getMaxBlockCenter(playerAABB.getMax().y);
+        int minBlockZ = getMinBlockCenter(playerAABB.getMin().z);
+        int maxBlockZ = getMaxBlockCenter(playerAABB.getMax().z);
+
+        for (int blockX = minBlockX; blockX <= maxBlockX; blockX++) {
+            for (int blockY = minBlockY; blockY <= maxBlockY; blockY++) {
+                for (int blockZ = minBlockZ; blockZ <= maxBlockZ; blockZ++) {
+                    if (!world.hasBlockAt(blockX, blockY, blockZ)) {
+                        continue;
+                    }
+
+                    scratchBlockAABB.setCenter(blockX, blockY, blockZ);
+                    if (!playerAABB.intersectsOnY(scratchBlockAABB)) {
+                        continue;
+                    }
+
+                    float blockBottom = blockY - BLOCK_HALF_SIZE;
+                    if (blockBottom < lowestCeiling) {
+                        lowestCeiling = blockBottom;
+                    }
                 }
             }
         }
@@ -292,12 +367,29 @@ public class PhysicsSystem {
     private float findWallXPositive(AABB playerAABB) {
         float leftmostWall = Float.MAX_VALUE;
 
-        for (Vector3 blockPos : nearbyBlocks) {
-            AABB blockAABB = new AABB(blockPos, BLOCK_SIZE / 2f);
-            if (playerAABB.intersectsOnX(blockAABB)) {
-                float blockLeft = blockPos.x - BLOCK_SIZE / 2f;
-                if (blockLeft < leftmostWall) {
-                    leftmostWall = blockLeft;
+        int minBlockX = getMinBlockCenter(playerAABB.getMin().x);
+        int maxBlockX = getMaxBlockCenter(playerAABB.getMax().x);
+        int minBlockY = getMinBlockCenter(playerAABB.getMin().y);
+        int maxBlockY = getMaxBlockCenter(playerAABB.getMax().y);
+        int minBlockZ = getMinBlockCenter(playerAABB.getMin().z);
+        int maxBlockZ = getMaxBlockCenter(playerAABB.getMax().z);
+
+        for (int blockX = minBlockX; blockX <= maxBlockX; blockX++) {
+            for (int blockY = minBlockY; blockY <= maxBlockY; blockY++) {
+                for (int blockZ = minBlockZ; blockZ <= maxBlockZ; blockZ++) {
+                    if (!world.hasBlockAt(blockX, blockY, blockZ)) {
+                        continue;
+                    }
+
+                    scratchBlockAABB.setCenter(blockX, blockY, blockZ);
+                    if (!playerAABB.intersectsOnX(scratchBlockAABB)) {
+                        continue;
+                    }
+
+                    float blockLeft = blockX - BLOCK_HALF_SIZE;
+                    if (blockLeft < leftmostWall) {
+                        leftmostWall = blockLeft;
+                    }
                 }
             }
         }
@@ -311,12 +403,29 @@ public class PhysicsSystem {
     private float findWallXNegative(AABB playerAABB) {
         float rightmostWall = -Float.MAX_VALUE;
 
-        for (Vector3 blockPos : nearbyBlocks) {
-            AABB blockAABB = new AABB(blockPos, BLOCK_SIZE / 2f);
-            if (playerAABB.intersectsOnX(blockAABB)) {
-                float blockRight = blockPos.x + BLOCK_SIZE / 2f;
-                if (blockRight > rightmostWall) {
-                    rightmostWall = blockRight;
+        int minBlockX = getMinBlockCenter(playerAABB.getMin().x);
+        int maxBlockX = getMaxBlockCenter(playerAABB.getMax().x);
+        int minBlockY = getMinBlockCenter(playerAABB.getMin().y);
+        int maxBlockY = getMaxBlockCenter(playerAABB.getMax().y);
+        int minBlockZ = getMinBlockCenter(playerAABB.getMin().z);
+        int maxBlockZ = getMaxBlockCenter(playerAABB.getMax().z);
+
+        for (int blockX = minBlockX; blockX <= maxBlockX; blockX++) {
+            for (int blockY = minBlockY; blockY <= maxBlockY; blockY++) {
+                for (int blockZ = minBlockZ; blockZ <= maxBlockZ; blockZ++) {
+                    if (!world.hasBlockAt(blockX, blockY, blockZ)) {
+                        continue;
+                    }
+
+                    scratchBlockAABB.setCenter(blockX, blockY, blockZ);
+                    if (!playerAABB.intersectsOnX(scratchBlockAABB)) {
+                        continue;
+                    }
+
+                    float blockRight = blockX + BLOCK_HALF_SIZE;
+                    if (blockRight > rightmostWall) {
+                        rightmostWall = blockRight;
+                    }
                 }
             }
         }
@@ -330,12 +439,29 @@ public class PhysicsSystem {
     private float findWallZPositive(AABB playerAABB) {
         float backmostWall = Float.MAX_VALUE;
 
-        for (Vector3 blockPos : nearbyBlocks) {
-            AABB blockAABB = new AABB(blockPos, BLOCK_SIZE / 2f);
-            if (playerAABB.intersectsOnZ(blockAABB)) {
-                float blockBack = blockPos.z - BLOCK_SIZE / 2f;
-                if (blockBack < backmostWall) {
-                    backmostWall = blockBack;
+        int minBlockX = getMinBlockCenter(playerAABB.getMin().x);
+        int maxBlockX = getMaxBlockCenter(playerAABB.getMax().x);
+        int minBlockY = getMinBlockCenter(playerAABB.getMin().y);
+        int maxBlockY = getMaxBlockCenter(playerAABB.getMax().y);
+        int minBlockZ = getMinBlockCenter(playerAABB.getMin().z);
+        int maxBlockZ = getMaxBlockCenter(playerAABB.getMax().z);
+
+        for (int blockX = minBlockX; blockX <= maxBlockX; blockX++) {
+            for (int blockY = minBlockY; blockY <= maxBlockY; blockY++) {
+                for (int blockZ = minBlockZ; blockZ <= maxBlockZ; blockZ++) {
+                    if (!world.hasBlockAt(blockX, blockY, blockZ)) {
+                        continue;
+                    }
+
+                    scratchBlockAABB.setCenter(blockX, blockY, blockZ);
+                    if (!playerAABB.intersectsOnZ(scratchBlockAABB)) {
+                        continue;
+                    }
+
+                    float blockBack = blockZ - BLOCK_HALF_SIZE;
+                    if (blockBack < backmostWall) {
+                        backmostWall = blockBack;
+                    }
                 }
             }
         }
@@ -349,12 +475,29 @@ public class PhysicsSystem {
     private float findWallZNegative(AABB playerAABB) {
         float frontmostWall = -Float.MAX_VALUE;
 
-        for (Vector3 blockPos : nearbyBlocks) {
-            AABB blockAABB = new AABB(blockPos, BLOCK_SIZE / 2f);
-            if (playerAABB.intersectsOnZ(blockAABB)) {
-                float blockFront = blockPos.z + BLOCK_SIZE / 2f;
-                if (blockFront > frontmostWall) {
-                    frontmostWall = blockFront;
+        int minBlockX = getMinBlockCenter(playerAABB.getMin().x);
+        int maxBlockX = getMaxBlockCenter(playerAABB.getMax().x);
+        int minBlockY = getMinBlockCenter(playerAABB.getMin().y);
+        int maxBlockY = getMaxBlockCenter(playerAABB.getMax().y);
+        int minBlockZ = getMinBlockCenter(playerAABB.getMin().z);
+        int maxBlockZ = getMaxBlockCenter(playerAABB.getMax().z);
+
+        for (int blockX = minBlockX; blockX <= maxBlockX; blockX++) {
+            for (int blockY = minBlockY; blockY <= maxBlockY; blockY++) {
+                for (int blockZ = minBlockZ; blockZ <= maxBlockZ; blockZ++) {
+                    if (!world.hasBlockAt(blockX, blockY, blockZ)) {
+                        continue;
+                    }
+
+                    scratchBlockAABB.setCenter(blockX, blockY, blockZ);
+                    if (!playerAABB.intersectsOnZ(scratchBlockAABB)) {
+                        continue;
+                    }
+
+                    float blockFront = blockZ + BLOCK_HALF_SIZE;
+                    if (blockFront > frontmostWall) {
+                        frontmostWall = blockFront;
+                    }
                 }
             }
         }
@@ -373,29 +516,41 @@ public class PhysicsSystem {
     private boolean hasGroundDirectlyBelow(Player player) {
         Vector3 pos = player.getPosition();
         float playerBottom = pos.y;
-        float GROUND_THRESHOLD = 0.02f;  // Maximum Y gap to consider as ground
-        float MIN_XZ_OVERLAP = 0.1f;     // Minimum X/Z overlap (excludes corners)
-        
         AABB playerAABB = player.getAABB();
-        
-        for (Vector3 blockPos : nearbyBlocks) {
-            float blockTop = blockPos.y + BLOCK_SIZE / 2f;
-            
-            // 1. Y-axis gap check: Is block top directly below player's feet?
-            float yGap = playerBottom - blockTop;
-            if (yGap < 0 || yGap > GROUND_THRESHOLD) {
-                continue;  // Too far or player is inside block
-            }
-            
-            // 2. X/Z projection area overlap check: Must overlap sufficiently to be considered ground
-            AABB blockAABB = new AABB(blockPos, BLOCK_SIZE / 2f);
-            float xOverlap = Math.min(playerAABB.getMax().x, blockAABB.getMax().x) 
-                           - Math.max(playerAABB.getMin().x, blockAABB.getMin().x);
-            float zOverlap = Math.min(playerAABB.getMax().z, blockAABB.getMax().z) 
-                           - Math.max(playerAABB.getMin().z, blockAABB.getMin().z);
-            
-            if (xOverlap > MIN_XZ_OVERLAP && zOverlap > MIN_XZ_OVERLAP) {
-                return true;  // Real ground found
+
+        int minBlockX = getMinBlockCenter(playerAABB.getMin().x);
+        int maxBlockX = getMaxBlockCenter(playerAABB.getMax().x);
+        int minBlockY = getMinBlockCenter(playerBottom - GROUND_THRESHOLD);
+        int maxBlockY = getMaxBlockCenter(playerBottom);
+        int minBlockZ = getMinBlockCenter(playerAABB.getMin().z);
+        int maxBlockZ = getMaxBlockCenter(playerAABB.getMax().z);
+
+        for (int blockX = minBlockX; blockX <= maxBlockX; blockX++) {
+            for (int blockY = minBlockY; blockY <= maxBlockY; blockY++) {
+                for (int blockZ = minBlockZ; blockZ <= maxBlockZ; blockZ++) {
+                    if (!world.hasBlockAt(blockX, blockY, blockZ)) {
+                        continue;
+                    }
+
+                    float blockTop = blockY + BLOCK_HALF_SIZE;
+
+                    // 1. Y-axis gap check: Is block top directly below player's feet?
+                    float yGap = playerBottom - blockTop;
+                    if (yGap < 0 || yGap > GROUND_THRESHOLD) {
+                        continue;  // Too far or player is inside block
+                    }
+
+                    // 2. X/Z projection area overlap check: Must overlap sufficiently to be considered ground
+                    scratchBlockAABB.setCenter(blockX, blockY, blockZ);
+                    float xOverlap = Math.min(playerAABB.getMax().x, scratchBlockAABB.getMax().x)
+                        - Math.max(playerAABB.getMin().x, scratchBlockAABB.getMin().x);
+                    float zOverlap = Math.min(playerAABB.getMax().z, scratchBlockAABB.getMax().z)
+                        - Math.max(playerAABB.getMin().z, scratchBlockAABB.getMin().z);
+
+                    if (xOverlap > MIN_XZ_OVERLAP && zOverlap > MIN_XZ_OVERLAP) {
+                        return true;  // Real ground found
+                    }
+                }
             }
         }
         
@@ -410,5 +565,13 @@ public class PhysicsSystem {
             player.getVelocity().y = Player.JUMP_VELOCITY;
             player.setOnGround(false);
         }
+    }
+
+    private int getMinBlockCenter(float min) {
+        return (int) Math.floor(min + BLOCK_HALF_SIZE);
+    }
+
+    private int getMaxBlockCenter(float max) {
+        return (int) Math.floor(Math.nextAfter(max + BLOCK_HALF_SIZE, Float.NEGATIVE_INFINITY));
     }
 }

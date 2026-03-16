@@ -4,7 +4,6 @@ import com.badlogic.gdx.math.Vector3;
 import kr.co.voxelite.entity.Player;
 import kr.co.voxelite.physics.PhysicsSystem;
 import kr.co.voxelite.util.PerformanceLogger;
-import kr.co.voxelite.world.BlockManager;
 import kr.co.voxelite.world.World;
 
 /**
@@ -38,7 +37,7 @@ public class VoxeliteEngine {
             return;
         }
 
-        world = new World(new BlockManager());
+        world = new World(null);
         float spawnY = config.playerStartPosition.y;
 
         if (config.chunkGenerator != null && config.chunkLoadPolicy != null) {

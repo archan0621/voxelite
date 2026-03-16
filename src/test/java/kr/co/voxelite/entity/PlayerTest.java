@@ -147,6 +147,36 @@ class PlayerTest extends GdxTestRunner {
         assertEquals(Player.HEIGHT / 2f, aabb.getHalfHeight(), 0.001f);
         assertEquals(Player.WIDTH / 2f, aabb.getHalfDepth(), 0.001f);
     }
+
+    @Test
+    void createCollisionAABB_ShouldUseFeetPositionAndCanonicalDimensions() {
+        // Given
+        Vector3 playerPos = new Vector3(10, 20, 30);
+
+        // When
+        AABB aabb = Player.createCollisionAABB(playerPos);
+
+        // Then
+        Vector3 center = aabb.getCenter();
+        assertEquals(10, center.x, 0.001f);
+        assertEquals(20 + Player.HEIGHT / 2f, center.y, 0.001f);
+        assertEquals(30, center.z, 0.001f);
+        assertEquals(Player.WIDTH / 2f, aabb.getHalfWidth(), 0.001f);
+        assertEquals(Player.HEIGHT / 2f, aabb.getHalfHeight(), 0.001f);
+        assertEquals(Player.WIDTH / 2f, aabb.getHalfDepth(), 0.001f);
+    }
+
+    @Test
+    void collidesWithBlock_ShouldMatchSharedCollisionRules() {
+        // Given
+        player.setPosition(0f, 0f, 0f);
+
+        // Then
+        assertTrue(player.collidesWithBlock(new Vector3(0, 0, 0)));
+        assertTrue(Player.collidesWithBlockAt(new Vector3(0, 0, 0), new Vector3(0, 0, 0)));
+        assertFalse(player.collidesWithBlock(new Vector3(2, 0, 0)));
+        assertFalse(Player.collidesWithBlockAt(new Vector3(0, 0, 0), new Vector3(2, 0, 0)));
+    }
     
     @Test
     void constants_ShouldHaveCorrectValues() {
