@@ -1,6 +1,7 @@
 package kr.co.voxelite.engine;
 
 import com.badlogic.gdx.math.Vector3;
+import kr.co.voxelite.world.BlockManager;
 import kr.co.voxelite.world.IChunkGenerator;
 import kr.co.voxelite.world.IChunkLoadPolicy;
 
@@ -23,6 +24,7 @@ public class VoxeliteConfig {
     public Vector3 playerStartPosition = new Vector3(0f, -0.5f, 0f);
     public float gravity = -20f;
     public float jumpVelocity = 7f;
+    public BlockManager.IBlockPropertiesProvider blockPropertiesProvider = null;
     public VoxeliteConfig() {
     }
 
@@ -86,6 +88,11 @@ public class VoxeliteConfig {
 
         public Builder worldSavePath(String path) {
             config.worldSavePath = path;
+            return this;
+        }
+
+        public Builder blockPropertiesProvider(BlockManager.IBlockPropertiesProvider provider) {
+            config.blockPropertiesProvider = provider;
             return this;
         }
 

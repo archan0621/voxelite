@@ -73,4 +73,24 @@ class PhysicsSystemTest {
         assertEquals(0f, player.getVelocity().x, 0.001f);
         assertEquals(0.5f - Player.WIDTH / 2f - 0.001f, player.getPosition().x, 0.001f);
     }
+
+    @Test
+    void update_PlayerFallsThroughNonSolidBlock_ShouldKeepFalling() {
+        BlockManager blockManager = new BlockManager();
+        blockManager.setPropertiesProvider(blockType -> blockType != 6);
+        world = new World(blockManager);
+        physics = new PhysicsSystem(world);
+
+        world.addBlock(new Vector3(0, 0, 0), 6);
+        player.setPosition(0, 2, 0);
+        player.setOnGround(false);
+        player.getVelocity().y = -5f;
+
+        for (int i = 0; i < 20; i++) {
+            physics.update(player, 0.1f);
+        }
+
+        assertFalse(player.isOnGround());
+        assertTrue(player.getPosition().y < 0.5f);
+    }
 }

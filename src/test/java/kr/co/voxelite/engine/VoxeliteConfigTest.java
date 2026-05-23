@@ -1,6 +1,7 @@
 package kr.co.voxelite.engine;
 
 import com.badlogic.gdx.math.Vector3;
+import kr.co.voxelite.world.BlockManager;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -22,6 +23,7 @@ class VoxeliteConfigTest {
         assertNull(config.chunkLoadPolicy);
         assertEquals("saves/world1", config.worldSavePath);
         assertEquals(new Vector3(0f, -0.5f, 0f), config.playerStartPosition);
+        assertNull(config.blockPropertiesProvider);
     }
 
     @Test
@@ -36,6 +38,7 @@ class VoxeliteConfigTest {
             .chunkPreloadRadius(3)
             .worldSavePath("saves/test")
             .worldSeed(42L)
+            .blockPropertiesProvider(blockType -> blockType != 6)
             .build();
 
         assertEquals(32, config.worldWidth);
@@ -48,5 +51,6 @@ class VoxeliteConfigTest {
         assertEquals(3, config.chunkPreloadRadius);
         assertEquals("saves/test", config.worldSavePath);
         assertEquals(42L, config.worldSeed);
+        assertFalse(config.blockPropertiesProvider.isSolid(6));
     }
 }

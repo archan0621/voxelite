@@ -189,7 +189,7 @@ public class PhysicsSystem {
         for (int blockX = minBlockX; blockX <= maxBlockX; blockX++) {
             for (int blockY = minBlockY; blockY <= maxBlockY; blockY++) {
                 for (int blockZ = minBlockZ; blockZ <= maxBlockZ; blockZ++) {
-                    if (!world.hasBlockAt(blockX, blockY, blockZ)) {
+                    if (!world.isSolidBlockAt(blockX, blockY, blockZ)) {
                         continue;
                     }
 
@@ -218,7 +218,7 @@ public class PhysicsSystem {
         for (int blockX = minBlockX; blockX <= maxBlockX; blockX++) {
             for (int blockY = minBlockY; blockY <= maxBlockY; blockY++) {
                 for (int blockZ = minBlockZ; blockZ <= maxBlockZ; blockZ++) {
-                    if (!world.hasBlockAt(blockX, blockY, blockZ)) {
+                    if (!world.isSolidBlockAt(blockX, blockY, blockZ)) {
                         continue;
                     }
 
@@ -246,7 +246,7 @@ public class PhysicsSystem {
         for (int blockX = minBlockX; blockX <= maxBlockX; blockX++) {
             for (int blockY = minBlockY; blockY <= maxBlockY; blockY++) {
                 for (int blockZ = minBlockZ; blockZ <= maxBlockZ; blockZ++) {
-                    if (!world.hasBlockAt(blockX, blockY, blockZ)) {
+                    if (!world.isSolidBlockAt(blockX, blockY, blockZ)) {
                         continue;
                     }
 
@@ -274,7 +274,7 @@ public class PhysicsSystem {
         for (int blockX = minBlockX; blockX <= maxBlockX; blockX++) {
             for (int blockY = minBlockY; blockY <= maxBlockY; blockY++) {
                 for (int blockZ = minBlockZ; blockZ <= maxBlockZ; blockZ++) {
-                    if (!world.hasBlockAt(blockX, blockY, blockZ)) {
+                    if (!world.isSolidBlockAt(blockX, blockY, blockZ)) {
                         continue;
                     }
 
@@ -305,7 +305,7 @@ public class PhysicsSystem {
         for (int blockX = minBlockX; blockX <= maxBlockX; blockX++) {
             for (int blockY = minBlockY; blockY <= maxBlockY; blockY++) {
                 for (int blockZ = minBlockZ; blockZ <= maxBlockZ; blockZ++) {
-                    if (!world.hasBlockAt(blockX, blockY, blockZ)) {
+                    if (!world.isSolidBlockAt(blockX, blockY, blockZ)) {
                         continue;
                     }
 
@@ -341,7 +341,7 @@ public class PhysicsSystem {
         for (int blockX = minBlockX; blockX <= maxBlockX; blockX++) {
             for (int blockY = minBlockY; blockY <= maxBlockY; blockY++) {
                 for (int blockZ = minBlockZ; blockZ <= maxBlockZ; blockZ++) {
-                    if (!world.hasBlockAt(blockX, blockY, blockZ)) {
+                    if (!world.isSolidBlockAt(blockX, blockY, blockZ)) {
                         continue;
                     }
 
@@ -377,7 +377,7 @@ public class PhysicsSystem {
         for (int blockX = minBlockX; blockX <= maxBlockX; blockX++) {
             for (int blockY = minBlockY; blockY <= maxBlockY; blockY++) {
                 for (int blockZ = minBlockZ; blockZ <= maxBlockZ; blockZ++) {
-                    if (!world.hasBlockAt(blockX, blockY, blockZ)) {
+                    if (!world.isSolidBlockAt(blockX, blockY, blockZ)) {
                         continue;
                     }
 
@@ -413,7 +413,7 @@ public class PhysicsSystem {
         for (int blockX = minBlockX; blockX <= maxBlockX; blockX++) {
             for (int blockY = minBlockY; blockY <= maxBlockY; blockY++) {
                 for (int blockZ = minBlockZ; blockZ <= maxBlockZ; blockZ++) {
-                    if (!world.hasBlockAt(blockX, blockY, blockZ)) {
+                    if (!world.isSolidBlockAt(blockX, blockY, blockZ)) {
                         continue;
                     }
 
@@ -449,7 +449,7 @@ public class PhysicsSystem {
         for (int blockX = minBlockX; blockX <= maxBlockX; blockX++) {
             for (int blockY = minBlockY; blockY <= maxBlockY; blockY++) {
                 for (int blockZ = minBlockZ; blockZ <= maxBlockZ; blockZ++) {
-                    if (!world.hasBlockAt(blockX, blockY, blockZ)) {
+                    if (!world.isSolidBlockAt(blockX, blockY, blockZ)) {
                         continue;
                     }
 
@@ -485,7 +485,7 @@ public class PhysicsSystem {
         for (int blockX = minBlockX; blockX <= maxBlockX; blockX++) {
             for (int blockY = minBlockY; blockY <= maxBlockY; blockY++) {
                 for (int blockZ = minBlockZ; blockZ <= maxBlockZ; blockZ++) {
-                    if (!world.hasBlockAt(blockX, blockY, blockZ)) {
+                    if (!world.isSolidBlockAt(blockX, blockY, blockZ)) {
                         continue;
                     }
 
@@ -528,7 +528,7 @@ public class PhysicsSystem {
         for (int blockX = minBlockX; blockX <= maxBlockX; blockX++) {
             for (int blockY = minBlockY; blockY <= maxBlockY; blockY++) {
                 for (int blockZ = minBlockZ; blockZ <= maxBlockZ; blockZ++) {
-                    if (!world.hasBlockAt(blockX, blockY, blockZ)) {
+                    if (!world.isSolidBlockAt(blockX, blockY, blockZ)) {
                         continue;
                     }
 

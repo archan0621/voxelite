@@ -95,6 +95,13 @@ public class World {
         return chunkManager.hasBlockAt(worldX, worldY, worldZ);
     }
 
+    public boolean isSolidBlockAt(float worldX, float worldY, float worldZ) {
+        if (chunkManager == null) {
+            return false;
+        }
+        return blockManager.isSolid(chunkManager.getBlockTypeAt(worldX, worldY, worldZ));
+    }
+
     @Deprecated
     public List<Vector3> getBlockPositions() {
         if (chunkManager != null) {

@@ -519,6 +519,21 @@ public class ChunkManager {
         return chunk.hasBlockAt(localX, worldY, localZ);
     }
 
+    public int getBlockTypeAt(float worldX, float worldY, float worldZ) {
+        ChunkCoord coord = ChunkCoord.fromWorldPos(worldX, worldZ, Chunk.CHUNK_SIZE);
+        Chunk chunk = loadedChunks.get(coord);
+        if (chunk == null || !chunk.isGenerated()) {
+            return -1;
+        }
+
+        int blockX = (int) Math.floor(worldX);
+        int blockZ = (int) Math.floor(worldZ);
+        int localX = Math.floorMod(blockX, Chunk.CHUNK_SIZE);
+        int localZ = Math.floorMod(blockZ, Chunk.CHUNK_SIZE);
+        Chunk.BlockData block = chunk.getBlock(localX, worldY, localZ);
+        return block != null ? block.blockType : -1;
+    }
+
     public void addBlock(Vector3 worldPos, int blockType) {
         ChunkCoord coord = ChunkCoord.fromWorldPos(worldPos.x, worldPos.z, Chunk.CHUNK_SIZE);
         Chunk chunk = loadedChunks.get(coord);
