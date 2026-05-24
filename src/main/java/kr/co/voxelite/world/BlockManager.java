@@ -18,6 +18,13 @@ public class BlockManager {
         int getTexture(int blockType, int faceIndex);
     }
 
+    /**
+     * Interface for placing blocks into renderer passes.
+     */
+    public interface IBlockRenderLayerProvider {
+        BlockRenderLayer getRenderLayer(int blockType);
+    }
+
     private IBlockTextureProvider textureProvider;
     private IBlockPropertiesProvider propertiesProvider;
 
