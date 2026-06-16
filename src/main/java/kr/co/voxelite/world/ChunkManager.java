@@ -26,6 +26,8 @@ import java.util.concurrent.TimeUnit;
  */
 public class ChunkManager {
     private static final long UNLOAD_GRACE_MS = 500L;
+    private static final int MAX_CHUNK_LOAD_REQUESTS_PER_UPDATE = 8;
+    private static final int MAX_CHUNK_PREGENERATE_REQUESTS_PER_UPDATE = 4;
 
     private final Map<ChunkCoord, Chunk> loadedChunks;
     private final LinkedHashMap<ChunkCoord, Long> chunkAccessTime;
@@ -38,6 +40,7 @@ public class ChunkManager {
     private final Queue<RenderSectionKey> dirtyChunks = new ConcurrentLinkedQueue<>();
     private final Set<RenderSectionKey> dirtySet = ConcurrentHashMap.newKeySet();
     private final Set<ChunkCoord> loadingChunks = ConcurrentHashMap.newKeySet();
+    private final Set<ChunkCoord> pregeneratingChunks = ConcurrentHashMap.newKeySet();
     private final Set<ChunkCoord> requiredChunksCache = new HashSet<>();
     private final Map<ChunkCoord, Long> unloadEligibleSince = new HashMap<>();
     private final Map<String, ChunkCoord> chunkCoordCache = new HashMap<>();
@@ -84,8 +87,12 @@ public class ChunkManager {
         requiredChunksCache.clear();
 
         int searchRadius = estimateSearchRadius();
+        RequestBudget requestBudget = new RequestBudget(
+            MAX_CHUNK_LOAD_REQUESTS_PER_UPDATE,
+            MAX_CHUNK_PREGENERATE_REQUESTS_PER_UPDATE
+        );
         for (ChunkCoord playerChunk : playerChunks) {
-            updateRequiredChunksForPlayerChunk(playerChunk, searchRadius, now);
+            updateRequiredChunksForPlayerChunk(playerChunk, searchRadius, now, requestBudget);
         }
 
         markChunksForDeferredUnload(now);
@@ -120,29 +127,51 @@ public class ChunkManager {
         return playerChunks;
     }
 
-    private void updateRequiredChunksForPlayerChunk(ChunkCoord playerChunk, int searchRadius, long now) {
+    private void updateRequiredChunksForPlayerChunk(
+        ChunkCoord playerChunk,
+        int searchRadius,
+        long now,
+        RequestBudget requestBudget
+    ) {
+        List<ChunkCoord> searchCoords = collectSearchCoordsByDistance(playerChunk, searchRadius);
+        for (ChunkCoord coord : searchCoords) {
+            int chunkX = coord.x;
+            int chunkZ = coord.z;
+            boolean shouldRender = loadPolicy.shouldLoadToMemory(chunkX, chunkZ, playerChunk.x, playerChunk.z);
+            boolean shouldKeepLoaded = shouldRender || loadPolicy.shouldKeepLoaded(chunkX, chunkZ, playerChunk.x, playerChunk.z);
+
+            if (shouldKeepLoaded) {
+                requiredChunksCache.add(coord);
+                unloadEligibleSince.remove(coord);
+                if (loadedChunks.containsKey(coord) || loadingChunks.contains(coord)) {
+                    chunkAccessTime.put(coord, now);
+                } else if (requestBudget.tryUseLoadRequest()) {
+                    loadOrGenerateChunkAsync(coord);
+                }
+            } else if (loadPolicy.shouldPregenerate(chunkX, chunkZ, playerChunk.x, playerChunk.z)
+                && !pregeneratingChunks.contains(coord)
+                && !ChunkSerializer.chunkFileExists(worldPath, coord)
+                && requestBudget.tryUsePregenerateRequest()) {
+                pregenerateChunkToDisk(coord);
+            }
+        }
+    }
+
+    private List<ChunkCoord> collectSearchCoordsByDistance(ChunkCoord playerChunk, int searchRadius) {
+        List<ChunkCoord> coords = new ArrayList<>();
         for (int dx = -searchRadius; dx <= searchRadius; dx++) {
             for (int dz = -searchRadius; dz <= searchRadius; dz++) {
                 int chunkX = playerChunk.x + dx;
                 int chunkZ = playerChunk.z + dz;
-                ChunkCoord coord = getOrCreateChunkCoord(chunkX, chunkZ);
-                boolean shouldRender = loadPolicy.shouldLoadToMemory(chunkX, chunkZ, playerChunk.x, playerChunk.z);
-                boolean shouldKeepLoaded = shouldRender || loadPolicy.shouldKeepLoaded(chunkX, chunkZ, playerChunk.x, playerChunk.z);
-
-                if (shouldKeepLoaded) {
-                    requiredChunksCache.add(coord);
-                    unloadEligibleSince.remove(coord);
-                    if (!loadedChunks.containsKey(coord)) {
-                        loadOrGenerateChunkAsync(coord);
-                    } else {
-                        chunkAccessTime.put(coord, now);
-                    }
-                } else if (loadPolicy.shouldPregenerate(chunkX, chunkZ, playerChunk.x, playerChunk.z)
-                    && !ChunkSerializer.chunkFileExists(worldPath, coord)) {
-                    pregenerateChunkToDisk(coord);
-                }
+                coords.add(getOrCreateChunkCoord(chunkX, chunkZ));
             }
         }
+
+        coords.sort(Comparator
+            .comparingInt((ChunkCoord coord) -> chunkDistanceSq(coord, playerChunk))
+            .thenComparingInt(coord -> coord.x)
+            .thenComparingInt(coord -> coord.z));
+        return coords;
     }
 
     private int estimateSearchRadius() {
@@ -152,6 +181,10 @@ public class ChunkManager {
     }
 
     private void pregenerateChunkToDisk(ChunkCoord coord) {
+        if (!pregeneratingChunks.add(coord)) {
+            return;
+        }
+
         executorService.submit(() -> {
             try {
                 if (!ChunkSerializer.chunkFileExists(worldPath, coord)) {
@@ -162,6 +195,8 @@ public class ChunkManager {
                 }
             } catch (Exception e) {
                 e.printStackTrace();
+            } finally {
+                pregeneratingChunks.remove(coord);
             }
         });
     }
@@ -667,6 +702,32 @@ public class ChunkManager {
                 System.err.println("[ChunkManager] Failed to save chunk on shutdown " + chunk.getCoord());
                 e.printStackTrace();
             }
+        }
+    }
+
+    private static class RequestBudget {
+        private int remainingLoadRequests;
+        private int remainingPregenerateRequests;
+
+        private RequestBudget(int remainingLoadRequests, int remainingPregenerateRequests) {
+            this.remainingLoadRequests = Math.max(0, remainingLoadRequests);
+            this.remainingPregenerateRequests = Math.max(0, remainingPregenerateRequests);
+        }
+
+        private boolean tryUseLoadRequest() {
+            if (remainingLoadRequests <= 0) {
+                return false;
+            }
+            remainingLoadRequests--;
+            return true;
+        }
+
+        private boolean tryUsePregenerateRequest() {
+            if (remainingPregenerateRequests <= 0) {
+                return false;
+            }
+            remainingPregenerateRequests--;
+            return true;
         }
     }
 
