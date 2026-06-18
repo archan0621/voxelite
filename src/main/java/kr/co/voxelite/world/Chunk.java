@@ -14,6 +14,7 @@ import java.util.Map;
 public class Chunk {
     public static final int CHUNK_SIZE = 16;
     public static final int RENDER_SECTION_HEIGHT = 16;
+    private static final float BLOCK_HALF_SIZE = 0.5f;
     private static final int MAX_RENDER_HEIGHT = 256;
     private static final int RENDER_SECTION_COUNT = MAX_RENDER_HEIGHT / RENDER_SECTION_HEIGHT;
     private static final float BOUNDS_MIN_Y = -1f;
@@ -34,8 +35,8 @@ public class Chunk {
     private BoundingBox calculateBounds() {
         float worldX = coord.x * CHUNK_SIZE;
         float worldZ = coord.z * CHUNK_SIZE;
-        Vector3 min = new Vector3(worldX, BOUNDS_MIN_Y, worldZ);
-        Vector3 max = new Vector3(worldX + CHUNK_SIZE, BOUNDS_MAX_Y, worldZ + CHUNK_SIZE);
+        Vector3 min = new Vector3(worldX - BLOCK_HALF_SIZE, BOUNDS_MIN_Y, worldZ - BLOCK_HALF_SIZE);
+        Vector3 max = new Vector3(worldX + CHUNK_SIZE - BLOCK_HALF_SIZE, BOUNDS_MAX_Y, worldZ + CHUNK_SIZE - BLOCK_HALF_SIZE);
         return new BoundingBox(min, max);
     }
 
@@ -52,8 +53,12 @@ public class Chunk {
         float worldZ = coord.z * CHUNK_SIZE;
         float minY = sectionY * RENDER_SECTION_HEIGHT;
         float maxY = minY + RENDER_SECTION_HEIGHT;
-        Vector3 min = new Vector3(worldX, minY, worldZ);
-        Vector3 max = new Vector3(worldX + CHUNK_SIZE, maxY, worldZ + CHUNK_SIZE);
+        Vector3 min = new Vector3(worldX - BLOCK_HALF_SIZE, minY - BLOCK_HALF_SIZE, worldZ - BLOCK_HALF_SIZE);
+        Vector3 max = new Vector3(
+            worldX + CHUNK_SIZE - BLOCK_HALF_SIZE,
+            maxY - BLOCK_HALF_SIZE,
+            worldZ + CHUNK_SIZE - BLOCK_HALF_SIZE
+        );
         return new BoundingBox(min, max);
     }
 

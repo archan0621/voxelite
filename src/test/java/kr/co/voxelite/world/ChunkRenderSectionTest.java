@@ -23,8 +23,8 @@ class ChunkRenderSectionTest {
 
         BoundingBox sectionBounds = chunk.getRenderSectionBounds(2);
 
-        assertEquals(new Vector3(32f, 32f, 48f), sectionBounds.min);
-        assertEquals(new Vector3(48f, 48f, 64f), sectionBounds.max);
+        assertEquals(new Vector3(31.5f, 31.5f, 47.5f), sectionBounds.min);
+        assertEquals(new Vector3(47.5f, 47.5f, 63.5f), sectionBounds.max);
     }
 
     @Test
