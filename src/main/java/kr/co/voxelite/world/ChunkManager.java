@@ -321,7 +321,7 @@ public class ChunkManager {
         }
 
         for (ChunkCoord coord : generatedChunks) {
-            addDirtyChunk(coord);
+            addDirtyChunkOccupiedSections(coord);
         }
         for (ChunkCoord coord : generatedChunks) {
             markAdjacentChunksDirty(coord);
@@ -343,7 +343,7 @@ public class ChunkManager {
         for (ChunkCoord adj : adjacents) {
             Chunk chunk = loadedChunks.get(adj);
             if (chunk != null && chunk.isGenerated()) {
-                addDirtyChunk(adj);
+                addDirtyChunkOccupiedSections(adj);
             }
         }
     }
@@ -356,6 +356,33 @@ public class ChunkManager {
         for (int sectionY = 0; sectionY < Chunk.getRenderSectionCount(); sectionY++) {
             addDirtySection(coord, sectionY);
         }
+    }
+
+    void addDirtyChunkOccupiedSections(ChunkCoord coord) {
+        if (coord == null) {
+            return;
+        }
+
+        Chunk chunk = loadedChunks.get(coord);
+        if (chunk == null || !chunk.isGenerated()) {
+            addDirtyChunk(coord);
+            return;
+        }
+
+        for (Integer sectionY : collectOccupiedRenderSections(chunk)) {
+            addDirtySection(coord, sectionY);
+        }
+    }
+
+    private Set<Integer> collectOccupiedRenderSections(Chunk chunk) {
+        Set<Integer> sections = new HashSet<>();
+        for (Chunk.BlockData block : chunk.getBlocks()) {
+            int sectionY = Chunk.getRenderSectionIndex(block.pos.y());
+            if (Chunk.isValidRenderSectionIndex(sectionY)) {
+                sections.add(sectionY);
+            }
+        }
+        return sections;
     }
 
     public void addDirtySection(ChunkCoord coord, int sectionY) {
@@ -501,7 +528,7 @@ public class ChunkManager {
         generatedChunks.addAll(loadedChunks.keySet());
         generatedChunks.sort(Comparator.comparingInt(coord -> chunkDistanceSq(coord, center)));
         for (ChunkCoord coord : generatedChunks) {
-            addDirtyChunk(coord);
+            addDirtyChunkOccupiedSections(coord);
         }
         System.out.println("[ChunkManager] Generated: " + generated + ", Loaded: " + loaded);
     }

@@ -70,6 +70,40 @@ class ChunkManagerDirtySectionTest {
     }
 
     @Test
+    void addDirtyChunkOccupiedSections_ShouldQueueOnlySectionsThatContainBlocks() {
+        ChunkManager chunkManager = createChunkManager();
+        ChunkCoord coord = new ChunkCoord(2, 3);
+        Chunk chunk = new Chunk(coord);
+        chunk.addBlockLocal(0, 2f, 0, 1);
+        chunk.addBlockLocal(0, 35f, 0, 1);
+        chunk.markAsGenerated();
+        chunkManager.replaceChunk(chunk);
+        drainAllDirtySections(chunkManager);
+
+        chunkManager.addDirtyChunkOccupiedSections(coord);
+
+        Set<RenderSectionKey> dirtySections = drainAllDirtySections(chunkManager);
+        assertEquals(Set.of(
+            new RenderSectionKey(coord, 0),
+            new RenderSectionKey(coord, 2)
+        ), dirtySections);
+    }
+
+    @Test
+    void addDirtyChunkOccupiedSections_ShouldSkipEmptyGeneratedChunks() {
+        ChunkManager chunkManager = createChunkManager();
+        ChunkCoord coord = new ChunkCoord(2, 3);
+        Chunk chunk = new Chunk(coord);
+        chunk.markAsGenerated();
+        chunkManager.replaceChunk(chunk);
+        drainAllDirtySections(chunkManager);
+
+        chunkManager.addDirtyChunkOccupiedSections(coord);
+
+        assertTrue(drainAllDirtySections(chunkManager).isEmpty());
+    }
+
+    @Test
     void addDirtySectionsAroundBlock_ShouldMarkVisibleSectionWhenEditingBelowWorldFloor() {
         ChunkManager chunkManager = createChunkManager();
 
