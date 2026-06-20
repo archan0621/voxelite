@@ -2,14 +2,21 @@ package kr.co.voxelite.util;
 
 /**
  * Performance logging utility for lag debugging.
- * Set ENABLED = false to disable all performance logs.
+ * Enable with -Dopencraft.perf=true or OPENCRAFT_PERF_LOGS=true.
  */
 public final class PerformanceLogger {
-    /** Set to false to disable all performance logs */
-    public static final boolean ENABLED = false;
+    public static final boolean ENABLED = Boolean.getBoolean("opencraft.perf")
+        || Boolean.parseBoolean(System.getenv().getOrDefault("OPENCRAFT_PERF_LOGS", "false"));
     
-    /** Log interval: log every N frames (1 = every frame) */
-    public static final int LOG_INTERVAL = 60;
+    /** Log interval: log every N frames (1 = every frame). */
+    public static final int LOG_INTERVAL = Math.max(1, Integer.getInteger("opencraft.perf.interval", 300));
+    public static final int SLOW_FRAME_MS = Math.max(1, Integer.getInteger("opencraft.perf.slowFrameMs", 25));
+    public static final int SLOW_RENDER_MS = Math.max(1, Integer.getInteger("opencraft.perf.slowRenderMs", 12));
+    public static final int SLOW_COLLECT_MS = Math.max(1, Integer.getInteger("opencraft.perf.slowCollectMs", 6));
+    public static final int SLOW_MESH_PROCESS_MS = Math.max(1, Integer.getInteger("opencraft.perf.slowMeshProcessMs", 16));
+    public static final int SLOW_MESH_PREPARE_MS = Math.max(1, Integer.getInteger("opencraft.perf.slowMeshPrepareMs", 20));
+    public static final int SLOW_MESH_BUILD_MS = Math.max(1, Integer.getInteger("opencraft.perf.slowMeshBuildMs", 16));
+    public static final int SLOW_CHUNK_PROCESS_MS = Math.max(1, Integer.getInteger("opencraft.perf.slowChunkProcessMs", 10));
     
     private static int frameCount = 0;
     
@@ -34,6 +41,18 @@ public final class PerformanceLogger {
     /** @return frame count after increment */
     public static int tickFrame() {
         return ++frameCount;
+    }
+
+    public static boolean shouldLogInterval() {
+        return ENABLED && frameCount % LOG_INTERVAL == 0;
+    }
+
+    public static boolean shouldLogSlow(long elapsedMs, int thresholdMs) {
+        return ENABLED && elapsedMs >= thresholdMs;
+    }
+
+    public static boolean shouldLogSlowOrInterval(long elapsedMs, int thresholdMs) {
+        return ENABLED && (elapsedMs >= thresholdMs || shouldLogInterval());
     }
     
     public static long now() {

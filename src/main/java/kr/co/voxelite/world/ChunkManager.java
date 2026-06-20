@@ -327,8 +327,9 @@ public class ChunkManager {
             markAdjacentChunksDirty(coord);
         }
 
-        if (PerformanceLogger.ENABLED && processed > 0) {
-            System.out.printf("[PERF][ChunkManager] processPendingChunks: %d chunks, %d ms%n", processed, PerformanceLogger.now() - t0);
+        long elapsedMs = PerformanceLogger.now() - t0;
+        if (processed > 0 && PerformanceLogger.shouldLogSlow(elapsedMs, PerformanceLogger.SLOW_CHUNK_PROCESS_MS)) {
+            System.out.printf("[PERF][ChunkManager] processPendingChunks: %d chunks, %d ms%n", processed, elapsedMs);
         }
     }
 
@@ -649,6 +650,23 @@ public class ChunkManager {
 
     public Collection<Chunk> getLoadedChunks() {
         return loadedChunks.values();
+    }
+
+    public List<Chunk> getVisibleGeneratedChunksByDistance(int limit) {
+        List<Chunk> chunks = new ArrayList<>();
+        for (Chunk chunk : loadedChunks.values()) {
+            if (chunk != null && chunk.isGenerated() && isChunkVisible(chunk.getCoord())) {
+                chunks.add(chunk);
+            }
+        }
+
+        if (lastPlayerChunk != null) {
+            chunks.sort(Comparator.comparingInt(chunk -> chunkDistanceSq(chunk.getCoord(), lastPlayerChunk)));
+        }
+        if (limit > 0 && chunks.size() > limit) {
+            return new ArrayList<>(chunks.subList(0, limit));
+        }
+        return chunks;
     }
 
     public void removeLoadedChunk(ChunkCoord coord) {
