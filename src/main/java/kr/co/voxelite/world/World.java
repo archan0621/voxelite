@@ -30,7 +30,7 @@ public class World {
     public float generateInitialChunks(float spawnX, float spawnZ, int totalRadius, int loadRadius) {
         ensureChunkManager();
         chunkManager.generateInitialChunks(spawnX, spawnZ, totalRadius, loadRadius);
-        return chunkManager.getChunkCenterHeight(spawnX, spawnZ);
+        return chunkManager.getSurfaceHeight(spawnX, spawnZ);
     }
 
     public void updateChunks(float playerX, float playerZ) {

@@ -3,8 +3,13 @@ package kr.co.voxelite.engine;
 import com.badlogic.gdx.math.Vector3;
 import kr.co.voxelite.entity.Player;
 import kr.co.voxelite.physics.PhysicsSystem;
+import kr.co.voxelite.world.Chunk;
+import kr.co.voxelite.world.IChunkLoadPolicy;
 import kr.co.voxelite.world.World;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -13,6 +18,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class VoxeliteEngineTest {
+    @TempDir
+    Path tempDir;
+
     @Test
     void initialize_ShouldCreateHeadlessSystems() {
         VoxeliteEngine engine = VoxeliteEngine.builder()
@@ -67,5 +75,47 @@ class VoxeliteEngineTest {
         assertTrue(engine.getWorld() instanceof World);
         assertTrue(engine.getPlayer() instanceof Player);
         assertTrue(engine.getPhysics() instanceof PhysicsSystem);
+    }
+
+    @Test
+    void initialize_ShouldSpawnOnTopOfTheBlockAtTheExactSpawnColumn() {
+        VoxeliteEngine engine = VoxeliteEngine.builder()
+            .playerStart(0f, 100f, 0f)
+            .autoCreateGround(true)
+            .worldSavePath(tempDir.resolve("spawn-world").toString())
+            .chunkGenerator((chunk, blockType) -> {
+                chunk.addBlockLocal(0, 5, 0, blockType);
+                chunk.addBlockLocal(Chunk.CHUNK_SIZE / 2, 20, Chunk.CHUNK_SIZE / 2, blockType);
+            })
+            .chunkLoadPolicy(new IChunkLoadPolicy() {
+                @Override
+                public boolean shouldLoadToMemory(int chunkX, int chunkZ, int playerChunkX, int playerChunkZ) {
+                    return chunkX == playerChunkX && chunkZ == playerChunkZ;
+                }
+
+                @Override
+                public boolean shouldKeepLoaded(int chunkX, int chunkZ, int playerChunkX, int playerChunkZ) {
+                    return shouldLoadToMemory(chunkX, chunkZ, playerChunkX, playerChunkZ);
+                }
+
+                @Override
+                public boolean shouldPregenerate(int chunkX, int chunkZ, int playerChunkX, int playerChunkZ) {
+                    return false;
+                }
+
+                @Override
+                public int getMaxLoadedChunks() {
+                    return 1;
+                }
+            })
+            .initialChunkRadius(0)
+            .chunkPreloadRadius(0)
+            .defaultGroundBlockType(1)
+            .build();
+
+        engine.initialize();
+
+        assertEquals(5.5f, engine.getPlayer().getPosition().y);
+        engine.dispose();
     }
 }

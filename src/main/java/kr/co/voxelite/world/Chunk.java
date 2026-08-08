@@ -136,21 +136,19 @@ public class Chunk {
         return new ArrayList<>(blocks.keySet());
     }
 
-    public float getCenterHeight() {
-        int centerX = CHUNK_SIZE / 2;
-        int centerZ = CHUNK_SIZE / 2;
+    public float getColumnTopY(int localX, int localZ) {
         int maxY = Integer.MIN_VALUE;
 
         for (BlockData block : blocks.values()) {
             BlockPos pos = block.pos;
-            if (pos.x() == centerX
-                && pos.z() == centerZ
+            if (pos.x() == localX
+                && pos.z() == localZ
                 && pos.y() > maxY) {
                 maxY = pos.y();
             }
         }
 
-        return maxY == Integer.MIN_VALUE ? -1f : maxY + 1f;
+        return maxY == Integer.MIN_VALUE ? Float.NaN : maxY + BLOCK_HALF_SIZE;
     }
 
     public ChunkCoord getCoord() {

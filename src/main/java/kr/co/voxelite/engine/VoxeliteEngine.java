@@ -44,13 +44,15 @@ public class VoxeliteEngine {
         if (config.chunkGenerator != null && config.chunkLoadPolicy != null) {
             world.initWithChunks(config.worldSavePath, config.defaultGroundBlockType, config.chunkGenerator, config.chunkLoadPolicy);
             if (config.autoCreateGround) {
-                float terrainHeight = world.generateInitialChunks(
+                float surfaceHeight = world.generateInitialChunks(
                     config.playerStartPosition.x,
                     config.playerStartPosition.z,
                     config.initialChunkRadius,
                     config.chunkPreloadRadius
                 );
-                spawnY = terrainHeight + 2f;
+                if (Float.isFinite(surfaceHeight)) {
+                    spawnY = surfaceHeight;
+                }
             }
         }
 
