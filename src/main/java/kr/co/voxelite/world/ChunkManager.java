@@ -307,7 +307,7 @@ public class ChunkManager {
         int processed = 0;
         List<ChunkCoord> generatedChunks = new ArrayList<>();
 
-        while ((chunk = pendingChunks.poll()) != null && processed < 4) {
+        while (processed < 4 && (chunk = pendingChunks.poll()) != null) {
             ChunkCoord coord = chunk.getCoord();
             loadingChunks.remove(coord);
             chunkAccessTime.put(coord, System.currentTimeMillis());
